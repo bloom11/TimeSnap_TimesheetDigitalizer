@@ -7,7 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: '/TimeSnap_TimesheetDigitalizer/', // Set to repository name for GitHub Pages
+      base: '/TimeSnap_TimesheetDigitalizer/', 
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -18,29 +18,51 @@ export default defineConfig(({ mode }) => {
         VitePWA({
           registerType: 'prompt',
           injectRegister: 'auto',
-          includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+          // Ho aggiunto la favicon e l'apple-touch-icon corretta dai tuoi nuovi asset
+          includeAssets: ['favicon.png', 'icons/icon-180x180.png'],
           manifest: {
-            name: 'TimeSnap - Timesheet Digitizer',
+            name: 'TimeSnap - Timesheet Digitizer -2',
             short_name: 'TimeSnap',
-            description: 'Scan physical timesheets, extract hours using AI, and sync with Excel files automatically.',
-            theme_color: '#ffffff',
+            description: 'An AI-powered Progressive Web App (PWA) that digitizes physical timesheets. It uses advanced Vision AI to extract work hours and sync with Excel files.',
+            theme_color: '#3b82f6', // Usiamo il blu del tuo logo
             background_color: '#ffffff',
             display: 'standalone',
+            start_url: './', // Cruciale per GitHub Pages
             icons: [
               {
-                src: 'pwa-192x192.svg',
+                src: 'icons/icon-192x192.png',
                 sizes: '192x192',
-                type: 'image/svg+xml'
+                type: 'image/png',
+                purpose: 'any'
               },
               {
-                src: 'pwa-512x512.svg',
+                src: 'icons/icon-384x384.png',
+                sizes: '384x384',
+                type: 'image/png',
+                purpose: 'any'
+              },
+              {
+                src: 'icons/icon-512x512.png',
                 sizes: '512x512',
-                type: 'image/svg+xml'
+                type: 'image/png',
+                purpose: 'any'
+              },
+              {
+                src: 'icons/icon-192x192-maskable.png',
+                sizes: '192x192',
+                type: 'image/png',
+                purpose: 'maskable'
+              },
+              {
+                src: 'icons/icon-512x512-maskable.png',
+                sizes: '512x512',
+                type: 'image/png',
+                purpose: 'maskable'
               }
             ]
           },
           workbox: {
-            maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, // 15MB for larger assets
+            maximumFileSizeToCacheInBytes: 15 * 1024 * 1024, 
             runtimeCaching: [
               {
                 urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
