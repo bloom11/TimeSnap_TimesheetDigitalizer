@@ -160,9 +160,8 @@ const geminiGenerateContentREST = async (opts: {
     return p;
   });
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` +
-    `?_ts=${Date.now()}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+
 
   const body = {
     contents: [{ role: "user", parts: normalizedParts }],
