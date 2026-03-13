@@ -449,8 +449,8 @@ export default function App() {
 
       <main className="max-w-4xl mx-auto relative">
         {overlay === "settings" && (
-            <div className="fixed inset-0 top-16 z-40 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
-                <div className="max-w-4xl mx-auto min-h-full">
+            <div className="fixed inset-0 top-16 z-40 bg-slate-50 dark:bg-slate-950 flex flex-col">
+                <div className="max-w-4xl mx-auto w-full flex-1 overflow-hidden flex flex-col">
                     <SettingsView ref={settingsRef} onClose={() => setOverlay(null)} />
                 </div>
             </div>
@@ -458,12 +458,6 @@ export default function App() {
         {overlay === "history" && (
             <div className="fixed inset-0 top-16 z-40 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
                 <div className="max-w-4xl mx-auto min-h-full p-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Scan History</h2>
-                        <button onClick={() => setOverlay(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full">
-                            <X className="w-6 h-6 text-slate-500" />
-                        </button>
-                    </div>
                     <HistoryList history={history} onSelect={handleLoadHistory} onDelete={handleDeleteHistory} />
                 </div>
             </div>

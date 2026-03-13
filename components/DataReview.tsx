@@ -388,13 +388,11 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-slate-50 dark:bg-slate-950">
-      <div className="shrink-0 p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20">
-        <div className="flex flex-wrap gap-3 justify-between items-center max-w-5xl mx-auto">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">Review & Edit Data</h2>
-          <div className="flex flex-wrap gap-2">
+      <div className="shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-5xl mx-auto w-full items-center">
             <button
               onClick={handleSort}
-              className="flex items-center px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-sm font-medium border border-slate-200 dark:border-slate-700 transition-colors"
+              className="shrink-0 flex items-center px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-sm font-medium border border-slate-200 dark:border-slate-700 transition-colors"
             >
               <ListFilter className="w-4 h-4 mr-2" />
               {sortOrder === 'none' ? 'Sort Date' : sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
@@ -405,7 +403,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
             {onScanMore && (
               <button
                 onClick={onScanMore}
-                className="flex items-center px-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm font-medium border border-blue-200 dark:border-blue-800 transition-colors"
+                className="shrink-0 flex items-center px-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm font-medium border border-blue-200 dark:border-blue-800 transition-colors"
               >
                 <ScanLine className="w-4 h-4 mr-1" /> Add Page
               </button>
@@ -413,22 +411,21 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
 
             <button
               onClick={openAddColumn}
-              className="flex items-center px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium border border-slate-200 dark:border-slate-700 transition-colors"
+              className="shrink-0 flex items-center px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium border border-slate-200 dark:border-slate-700 transition-colors"
             >
               <LayoutGrid className="w-4 h-4 mr-1" /> Add Column
             </button>
 
             <button
               onClick={handleAddRow}
-              className="flex items-center px-3 py-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 text-sm font-medium border border-green-200 dark:border-green-800 transition-colors"
+              className="shrink-0 flex items-center px-3 py-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 text-sm font-medium border border-green-200 dark:border-green-800 transition-colors"
             >
               <Plus className="w-4 h-4 mr-1" /> Add Row
             </button>
-          </div>
         </div>
       </div>
 
-      <div className="flex-1 bg-slate-50 dark:bg-slate-950 p-4 pb-24 flex flex-col min-h-0">
+      <div className="flex-1 bg-slate-50 dark:bg-slate-950 p-4 pb-4 flex flex-col min-h-0">
         <div className="max-w-5xl mx-auto w-full bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col flex-1 min-h-[300px] overflow-hidden">
           <div className="overflow-auto flex-1">
             <table className="w-full min-w-max border-collapse relative">

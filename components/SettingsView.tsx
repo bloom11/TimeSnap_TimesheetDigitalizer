@@ -181,13 +181,8 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
   ];
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4 animate-fade-in pb-20 relative">
-        <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Preferences</h2>
-            <button onClick={handleCloseAttempt} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white font-medium px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Close</button>
-        </div>
-
-        <div className="space-y-8">
+    <div className="w-full h-full flex flex-col animate-fade-in relative">
+        <div className="flex-1 overflow-y-auto p-4 space-y-8 pb-8">
             {/* Appearance Settings */}
             <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -392,15 +387,15 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
                     </label>
                 </div>
             </section>
+        </div>
 
-            <div className="flex justify-between pt-4">
-                <button onClick={handleReset} className={`flex items-center px-4 py-3 rounded-lg transition-colors text-sm font-medium ${confirmReset ? 'bg-red-600 text-white hover:bg-red-700 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'}`}>
-                    {confirmReset ? (<><AlertTriangle className="w-4 h-4 mr-2" /> Are you sure? Click to Confirm</>) : (<><RotateCcw className="w-4 h-4 mr-2" /> Factory Reset</>)}
-                </button>
-                <button onClick={handleSave} disabled={!!jsonError} className={`flex items-center px-6 py-3 rounded-lg font-bold text-white transition-all shadow-lg ${isSaved ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700 disabled:opacity-50'}`}>
-                    {isSaved ? "Saved!" : <><Save className="w-5 h-5 mr-2" /> Save Changes</>}
-                </button>
-            </div>
+        <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-between">
+            <button onClick={handleReset} className={`flex items-center px-4 py-3 rounded-lg transition-colors text-sm font-medium ${confirmReset ? 'bg-red-600 text-white hover:bg-red-700 shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20'}`}>
+                {confirmReset ? (<><AlertTriangle className="w-4 h-4 mr-2" /> Are you sure? Click to Confirm</>) : (<><RotateCcw className="w-4 h-4 mr-2" /> Factory Reset</>)}
+            </button>
+            <button onClick={handleSave} disabled={!!jsonError} className={`flex items-center px-6 py-3 rounded-lg font-bold text-white transition-all shadow-lg ${isSaved ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700 disabled:opacity-50'}`}>
+                {isSaved ? "Saved!" : <><Save className="w-5 h-5 mr-2" /> Save Changes</>}
+            </button>
         </div>
 
         {/* Unsaved Changes Warning Modal */}
