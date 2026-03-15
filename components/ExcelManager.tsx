@@ -10,6 +10,8 @@ import * as XLSX from 'xlsx';
 
 interface ExcelManagerProps {
   data: TimeEntry[];
+  configs: ColumnConfig[];
+  columnOrder: string[];
   onBack: () => void;
   onScanMore?: () => void;
   onHome?: () => void;
@@ -17,13 +19,14 @@ interface ExcelManagerProps {
 
 interface ColumnSelectorProps {
   dataKey: string;
+  label: string;
   mapping: ExcelColumnMapping;
   onMappingChange: (key: string, value: string) => void;
 }
 
-const ColumnSelector: React.FC<ColumnSelectorProps> = ({ dataKey, mapping, onMappingChange }) => (
+const ColumnSelector: React.FC<ColumnSelectorProps> = ({ dataKey, label, mapping, onMappingChange }) => (
   <div className="flex items-center justify-between p-2 border-b border-slate-100 dark:border-slate-700 last:border-0">
-      <span className="text-sm text-slate-600 dark:text-slate-300 font-medium capitalize">{dataKey.replace(/([A-Z])/g, ' $1')}</span>
+      <span className="text-sm text-slate-600 dark:text-slate-300 font-medium capitalize">{label}</span>
       <select 
         value={mapping[`${dataKey}Col`] || ''} 
         onChange={(e) => onMappingChange(dataKey, e.target.value)}
@@ -37,7 +40,7 @@ const ColumnSelector: React.FC<ColumnSelectorProps> = ({ dataKey, mapping, onMap
   </div>
 );
 
-const ExcelManager: React.FC<ExcelManagerProps> = ({ data, onBack, onScanMore, onHome }) => {
+const ExcelManager: React.FC<ExcelManagerProps> = ({ data, configs, columnOrder, onBack, onScanMore, onHome }) => {
   const [mode, setMode] = useState<'create' | 'merge' | null>(null);
   
   // File State
@@ -64,7 +67,16 @@ const ExcelManager: React.FC<ExcelManagerProps> = ({ data, onBack, onScanMore, o
   const [copied, setCopied] = useState(false);
 
   // Use the shared logic to get all columns (Standard + Calculated)
-  const exportableColumns = useMemo(() => getExportableColumns(data), [data]);
+  const exportableColumns = useMemo(() => {
+    if (columnOrder && columnOrder.length > 0) {
+      // Filter out any columns that don't exist in data
+      const availableKeys = data.length > 0 ? Object.keys(data[0]).filter(k => k !== 'id') : [];
+      const ordered = columnOrder.filter(k => availableKeys.includes(k));
+      const missing = availableKeys.filter(k => !ordered.includes(k));
+      return [...ordered, ...missing];
+    }
+    return getExportableColumns(data);
+  }, [data, columnOrder]);
 
   // Load profiles on mount
   useEffect(() => {
@@ -72,12 +84,23 @@ const ExcelManager: React.FC<ExcelManagerProps> = ({ data, onBack, onScanMore, o
   }, []);
 
   const handleCreateNew = () => {
-    generateStandardExcel(data);
+    generateStandardExcel(data, exportableColumns, configs);
   };
 
   const handleCopyToClipboard = () => {
      // Join headers based on the centralized column order
-     const header = exportableColumns.join("\t");
+     const header = exportableColumns.map(k => {
+       const config = configs.find(c => c.key === k);
+       if (config && config.name) return config.name;
+       const map: Record<string, string> = {
+           date: "Date",
+           entrance: "Entrance",
+           lunchStart: "Lunch Start",
+           lunchEnd: "Lunch End",
+           exit: "Exit"
+       };
+       return map[k] || k.replace(/([A-Z])/g, ' $1').replace(/(\d+)/g, '').trim();
+     }).join("\t");
      // Map rows using the same column order
      const rows = data.map(entry => exportableColumns.map(k => entry[k] || '').join("\t")).join("\n");
      
@@ -413,14 +436,26 @@ const ExcelManager: React.FC<ExcelManagerProps> = ({ data, onBack, onScanMore, o
                       <p className="text-xs text-slate-500 dark:text-slate-400">Map data to Excel columns (A, B, C...).</p>
                       
                       <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 p-2 max-h-52 overflow-y-auto">
-                        {exportableColumns.map(key => (
-                            <ColumnSelector 
-                                key={key} 
-                                dataKey={key} 
-                                mapping={mapping}
-                                onMappingChange={(k, v) => setMapping(prev => ({...prev, [`${k}Col`]: v}))}
-                            />
-                        ))}
+                        {exportableColumns.map(key => {
+                            const config = configs.find(c => c.key === key);
+                            const map: Record<string, string> = {
+                                date: "Date",
+                                entrance: "Entrance",
+                                lunchStart: "Lunch Start",
+                                lunchEnd: "Lunch End",
+                                exit: "Exit"
+                            };
+                            const label = config?.name || map[key] || key.replace(/([A-Z])/g, ' $1').replace(/(\d+)/g, '').trim();
+                            return (
+                              <ColumnSelector 
+                                  key={key} 
+                                  dataKey={key} 
+                                  label={label}
+                                  mapping={mapping}
+                                  onMappingChange={(k, v) => setMapping(prev => ({...prev, [`${k}Col`]: v}))}
+                              />
+                            );
+                        })}
                       </div>
 
                       <div className="flex gap-3 pt-2">

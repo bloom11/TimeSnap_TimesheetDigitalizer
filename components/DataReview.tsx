@@ -3,14 +3,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Trash2, Plus, ArrowRight, Calculator, X, Settings2, ScanLine, GripHorizontal,
   LayoutGrid, Type, Hash, Clock, ArrowUp, ArrowDown, GripVertical, ListFilter,
-  CheckSquare, Square, ArrowUpFromLine, ArrowDownFromLine
+  CheckSquare, Square, ArrowUpFromLine, ArrowDownFromLine, ListOrdered
 } from 'lucide-react';
 import { TimeEntry, ColumnConfig, FormulaType } from '../types';
 
 interface DataReviewProps {
   data: TimeEntry[];
   configs: ColumnConfig[];
-  onUpdate: (data: TimeEntry[], configs?: ColumnConfig[]) => void;
+  initialColumnOrder: string[];
+  onUpdate: (data: TimeEntry[], configs?: ColumnConfig[], columnOrder?: string[]) => void;
   onNext: () => void;
   onScanMore?: () => void;
 
@@ -29,8 +30,9 @@ const DEFAULT_LABELS: { [key: string]: string } = {
   exit: 'Exit'
 };
 
-const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext, onScanMore, onRequestConfirm }) => {
+const DataReview: React.FC<DataReviewProps> = ({ data, configs, initialColumnOrder, onUpdate, onNext, onScanMore, onRequestConfirm }) => {
   const [showColModal, setShowColModal] = useState(false);
+  const [showReorderModal, setShowReorderModal] = useState(false);
   const [modalConfig, setModalConfig] = useState<ColumnConfig>({
     key: '',
     name: '',
@@ -77,6 +79,14 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
     const standardOrder = ['date', 'entrance', 'lunchStart', 'lunchEnd', 'exit'];
 
     setColumnOrder(prev => {
+      // If we have an initial order from props that covers the keys, use it
+      if (initialColumnOrder && initialColumnOrder.length > 0 && prev.length === 0) {
+         // ensure all keys are present
+         const missing = allKeys.filter(k => !initialColumnOrder.includes(k));
+         if (missing.length === 0) return initialColumnOrder;
+         return [...initialColumnOrder, ...missing];
+      }
+
       // initial
       if (prev.length === 0) {
         return [
@@ -96,7 +106,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
 
       return [...kept, ...missingStandard, ...missingOther];
     });
-  }, [data]);
+  }, [data, initialColumnOrder]);
 
   const getLabel = (key: string) => {
     const config = configs.find(c => c.key === key);
@@ -122,6 +132,16 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
   };
 
   // --- Column Drag Logic ---
+  const moveColumn = (index: number, direction: -1 | 1) => {
+    const newOrder = [...columnOrder];
+    if (index + direction < 0 || index + direction >= newOrder.length) return;
+    const temp = newOrder[index];
+    newOrder[index] = newOrder[index + direction];
+    newOrder[index + direction] = temp;
+    setColumnOrder(newOrder);
+    onUpdate(data, configs, newOrder);
+  };
+
   const handleColDragStart = (e: React.DragEvent<HTMLTableCellElement>, position: number) => {
     dragItem.current = position;
     e.currentTarget.classList.add('opacity-50', 'bg-blue-50');
@@ -144,6 +164,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
       _columnOrder.splice(dragItem.current, 1);
       _columnOrder.splice(dragOverItem.current, 0, draggedItemContent);
       setColumnOrder(_columnOrder);
+      onUpdate(data, configs, _columnOrder);
     }
     dragItem.current = null;
     dragOverItem.current = null;
@@ -327,7 +348,8 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
         cancelText: "Cancel",
       },
       () => {
-        setColumnOrder(prev => prev.filter(k => k !== keyToDelete));
+        const newOrder = columnOrder.filter(k => k !== keyToDelete);
+        setColumnOrder(newOrder);
 
         const updatedConfigs = configs.filter(c => c.key !== keyToDelete);
 
@@ -337,7 +359,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
           return newEntry;
         });
 
-        onUpdate(updatedData, updatedConfigs);
+        onUpdate(updatedData, updatedConfigs, newOrder);
         setShowColModal(false);
       }
     );
@@ -389,7 +411,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-slate-50 dark:bg-slate-950">
       <div className="shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-5xl mx-auto w-full items-center">
+        <div className="flex gap-2 overflow-x-auto hide-scroll-until-touch max-w-5xl mx-auto w-full items-center pb-1">
             <button
               onClick={handleSort}
               className="shrink-0 flex items-center px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-sm font-medium border border-slate-200 dark:border-slate-700 transition-colors"
@@ -414,6 +436,13 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
               className="shrink-0 flex items-center px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium border border-slate-200 dark:border-slate-700 transition-colors"
             >
               <LayoutGrid className="w-4 h-4 mr-1" /> Add Column
+            </button>
+
+            <button
+              onClick={() => setShowReorderModal(true)}
+              className="shrink-0 flex items-center px-3 py-2 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 text-sm font-medium border border-purple-200 dark:border-purple-800 transition-colors"
+            >
+              <ListOrdered className="w-4 h-4 mr-1" /> Reorder Columns
             </button>
 
             <button
@@ -453,7 +482,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <GripHorizontal className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100" />
+                          <GripHorizontal className="w-4 h-4 text-slate-400" />
                           <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                             {getLabel(key)}
                             {configs.some(c => c.key === key && c.formula !== 'none') && (
@@ -464,7 +493,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
                         <button
                           onClick={(e) => { e.stopPropagation(); openEditColumn(key); }}
                           onMouseDown={(e) => e.stopPropagation()}
-                          className="p-1 rounded hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-slate-400 opacity-0 group-hover:opacity-100"
+                          className="p-1 rounded hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-slate-400"
                           title="Edit Column Settings"
                         >
                           <Settings2 className="w-4 h-4" />
@@ -713,6 +742,58 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, onUpdate, onNext
                 className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all shadow-lg"
               >
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reorder Columns Modal */}
+      {showReorderModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Reorder Columns</h3>
+                <p className="text-xs text-slate-500 mt-1">Use arrows to move columns</p>
+              </div>
+              <button onClick={() => setShowReorderModal(false)}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="p-3 overflow-y-auto flex-1">
+              <div className="space-y-2">
+                {columnOrder.map((key, index) => (
+                  <div key={key} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <span className="font-medium text-sm text-slate-700 dark:text-slate-300">{getLabel(key)}</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => moveColumn(index, -1)}
+                        disabled={index === 0}
+                        className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg disabled:opacity-30 transition-colors"
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => moveColumn(index, 1)}
+                        disabled={index === columnOrder.length - 1}
+                        className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg disabled:opacity-30 transition-colors"
+                      >
+                        <ArrowDown className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => setShowReorderModal(false)}
+                className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg"
+              >
+                Done
               </button>
             </div>
           </div>

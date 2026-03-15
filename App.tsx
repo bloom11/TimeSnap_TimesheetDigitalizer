@@ -89,6 +89,7 @@ export default function App() {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>([]);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [history, setHistory] = useState<SavedScan[]>([]);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
   const [isAppending, setIsAppending] = useState(false);
@@ -157,6 +158,7 @@ export default function App() {
     setIsAppending(false);
     setEntries([]);
     setColumnConfigs([]);
+    setColumnOrder([]);
     setCurrentScanId(null);
     setPreloadedOfflineImage(null);
     setProcessingStatus("idle");
@@ -167,6 +169,7 @@ export default function App() {
   const doGoHomeAndClear = useCallback(() => {
     setEntries([]);
     setColumnConfigs([]);
+    setColumnOrder([]);
     setCurrentScanId(null);
     if (syncService) {
         syncService.destroy();
@@ -318,6 +321,7 @@ export default function App() {
   const handleLoadHistory = useCallback((scan: SavedScan) => {
     setEntries(scan.entries);
     setColumnConfigs(scan.columnConfigs || []);
+    setColumnOrder(scan.columnOrder || []);
     setCurrentScanId(scan.id);
     setAppState(AppState.REVIEW);
     setOverlay(null);
@@ -330,21 +334,24 @@ export default function App() {
         setCurrentScanId(null);
         setEntries([]);
         setColumnConfigs([]);
+        setColumnOrder([]);
         setAppState(AppState.HOME);
     }
   }, [currentScanId]);
 
-  const handleEntriesUpdate = (updatedEntries: TimeEntry[], updatedConfigs?: ColumnConfig[]) => {
+  const handleEntriesUpdate = (updatedEntries: TimeEntry[], updatedConfigs?: ColumnConfig[], updatedOrder?: string[]) => {
       const finalConfigs = updatedConfigs || columnConfigs;
+      const finalOrder = updatedOrder || columnOrder;
       const calculated = applyFormulas(updatedEntries, finalConfigs);
       
       setEntries(calculated);
       if (updatedConfigs) setColumnConfigs(updatedConfigs);
+      if (updatedOrder) setColumnOrder(updatedOrder);
 
       if (currentScanId) {
-          updateScan(currentScanId, calculated, finalConfigs);
+          updateScan(currentScanId, calculated, finalConfigs, finalOrder);
       } else {
-          const saved = saveScan(calculated, finalConfigs);
+          const saved = saveScan(calculated, finalConfigs, finalOrder);
           setCurrentScanId(saved.id);
       }
   };
@@ -544,8 +551,8 @@ export default function App() {
               />
           )}
 
-          {appState === AppState.REVIEW && (<DataReview data={entries} configs={columnConfigs} onUpdate={handleEntriesUpdate} onNext={() => setAppState(AppState.EXPORT)} onScanMore={scanMore} onRequestConfirm={requestConfirm} />)}
-          {appState === AppState.EXPORT && (<div className="animate-slide-up pt-8 px-4"><ExcelManager data={entries} onBack={() => setAppState(AppState.REVIEW)} onScanMore={scanMore} onHome={() => requestConfirm({ title: "Return Home", message: "Finish export session?", confirmText: "Yes, Done" }, doGoHomeAndClear)} /></div>)}
+          {appState === AppState.REVIEW && (<DataReview key={currentScanId || 'new'} data={entries} configs={columnConfigs} initialColumnOrder={columnOrder} onUpdate={handleEntriesUpdate} onNext={() => setAppState(AppState.EXPORT)} onScanMore={scanMore} onRequestConfirm={requestConfirm} />)}
+          {appState === AppState.EXPORT && (<div className="animate-slide-up pt-8 px-4"><ExcelManager key={currentScanId || 'new'} data={entries} configs={columnConfigs} columnOrder={columnOrder} onBack={() => setAppState(AppState.REVIEW)} onScanMore={scanMore} onHome={() => requestConfirm({ title: "Return Home", message: "Finish export session?", confirmText: "Yes, Done" }, doGoHomeAndClear)} /></div>)}
         </div>
       </main>
 

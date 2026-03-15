@@ -14,14 +14,15 @@ export const getHistory = (): SavedScan[] => {
   }
 };
 
-export const saveScan = (entries: TimeEntry[], columnConfigs?: ColumnConfig[]): SavedScan => {
+export const saveScan = (entries: TimeEntry[], columnConfigs?: ColumnConfig[], columnOrder?: string[]): SavedScan => {
   const history = getHistory();
   const newScan: SavedScan = {
     id: `scan-${Date.now()}`,
     timestamp: Date.now(),
     name: `Scan ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
     entries,
-    columnConfigs
+    columnConfigs,
+    columnOrder
   };
   
   const updatedHistory = [newScan, ...history].slice(0, 20);
@@ -29,9 +30,14 @@ export const saveScan = (entries: TimeEntry[], columnConfigs?: ColumnConfig[]): 
   return newScan;
 };
 
-export const updateScan = (id: string, entries: TimeEntry[], columnConfigs?: ColumnConfig[]) => {
+export const updateScan = (id: string, entries: TimeEntry[], columnConfigs?: ColumnConfig[], columnOrder?: string[]) => {
   const history = getHistory();
-  const updated = history.map(h => h.id === id ? { ...h, entries, columnConfigs: columnConfigs || h.columnConfigs } : h);
+  const updated = history.map(h => h.id === id ? { 
+    ...h, 
+    entries, 
+    columnConfigs: columnConfigs || h.columnConfigs,
+    columnOrder: columnOrder || h.columnOrder
+  } : h);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 };
 

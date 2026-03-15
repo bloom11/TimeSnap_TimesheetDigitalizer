@@ -1,7 +1,7 @@
 
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
-import { TimeEntry, ExcelColumnMapping } from "../types";
+import { TimeEntry, ExcelColumnMapping, ColumnConfig } from "../types";
 
 // Returns a preview of data for the AI using XLSX (fast read)
 export const readExcelFile = (file: File): Promise<{ workbook: XLSX.WorkBook, previews: Record<string, any[][]> }> => {
@@ -52,10 +52,26 @@ export const getExportableColumns = (data: TimeEntry[]): string[] => {
     return [...presentStandardKeys, ...customKeys];
 };
 
-export const generateStandardExcel = (data: TimeEntry[]) => {
+export const generateStandardExcel = (data: TimeEntry[], exportableColumns?: string[], configs?: ColumnConfig[]) => {
   if (data.length === 0) return;
-  const columns = getExportableColumns(data);
-  const headers = columns.map(getHeaderLabel);
+  const columns = exportableColumns || getExportableColumns(data);
+  
+  const getLabel = (key: string) => {
+    if (configs) {
+      const config = configs.find(c => c.key === key);
+      if (config && config.name) return config.name;
+    }
+    const map: Record<string, string> = {
+        date: "Date",
+        entrance: "Entrance",
+        lunchStart: "Lunch Start",
+        lunchEnd: "Lunch End",
+        exit: "Exit"
+    };
+    return map[key] || key.replace(/([A-Z])/g, ' $1').replace(/(\d+)/g, '').trim();
+  };
+
+  const headers = columns.map(getLabel);
   const rows = data.map(item => columns.map(col => item[col] || ''));
 
   const wsData = [headers, ...rows];

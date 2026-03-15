@@ -26,6 +26,7 @@ export interface SavedScan {
   name: string;
   entries: TimeEntry[];
   columnConfigs?: ColumnConfig[]; // New: persists the logic for this scan
+  columnOrder?: string[]; // New: persists the column order
 }
 
 export interface ExcelColumnMapping {
