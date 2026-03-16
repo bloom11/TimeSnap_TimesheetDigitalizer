@@ -15,7 +15,6 @@ interface DataReviewProps {
   onNext: () => void;
   onScanMore?: () => void;
 
-  // ✅ reuse App.tsx confirm modal (optional)
   onRequestConfirm?: (
     cfg: { title: string; message: string; confirmText?: string; cancelText?: string },
     onConfirm: () => void
@@ -52,7 +51,6 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, initialColumnOrd
   const rowDragItem = useRef<number | null>(null);
   const rowDragOverItem = useRef<number | null>(null);
 
-  // ✅ Confirm helper: uses App modal if available, else fallback
   const confirmAction = (
     cfg: { title: string; message: string; confirmText?: string; cancelText?: string },
     action: () => void
@@ -65,7 +63,6 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, initialColumnOrd
     if (window.confirm(cfg.message)) action();
   };
 
-  // ✅ Keep columnOrder always in sync with current data keys
   useEffect(() => {
     if (data.length === 0) {
       setColumnOrder([]);
@@ -285,7 +282,6 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, initialColumnOrd
     if (canMove) onUpdate(newData);
   };
 
-  // ✅ FIX: no window.confirm (uses app confirm)
   const deleteSelected = () => {
     if (selectedIds.size === 0) return;
 
@@ -334,7 +330,6 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, initialColumnOrd
     onUpdate([...data, newRow]);
   };
 
-  // ✅ FIX: delete column by KEY (not index)
   const handleDeleteColumnByKey = (keyToDelete: string) => {
     if (!keyToDelete) return;
 
@@ -411,7 +406,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, initialColumnOrd
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-slate-50 dark:bg-slate-950">
       <div className="shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20">
-        <div className="flex gap-2 overflow-x-auto hide-scroll-until-touch max-w-5xl mx-auto w-full items-center pb-1">
+        <div className="flex gap-2 overflow-x-auto hide-scroll-until-touch max-w-[1600px] mx-auto w-full items-center pb-1">
             <button
               onClick={handleSort}
               className="shrink-0 flex items-center px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-sm font-medium border border-slate-200 dark:border-slate-700 transition-colors"
@@ -455,7 +450,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, initialColumnOrd
       </div>
 
       <div className="flex-1 bg-slate-50 dark:bg-slate-950 p-4 pb-4 flex flex-col min-h-0">
-        <div className="max-w-5xl mx-auto w-full bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col flex-1 min-h-[300px] overflow-hidden">
+        <div className="max-w-[1600px] mx-auto w-full bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col flex-1 min-h-[300px] overflow-hidden">
           <div className="overflow-auto flex-1">
             <table className="w-full min-w-max border-collapse relative">
               <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
@@ -801,7 +796,7 @@ const DataReview: React.FC<DataReviewProps> = ({ data, configs, initialColumnOrd
       )}
 
       <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-        <div className="max-w-4xl mx-auto flex justify-end">
+        <div className="max-w-[1600px] mx-auto flex justify-end">
           <button
             onClick={onNext}
             disabled={data.length === 0}

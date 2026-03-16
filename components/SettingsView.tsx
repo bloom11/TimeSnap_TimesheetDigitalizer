@@ -1,6 +1,6 @@
 
 import React, { useState, forwardRef, useImperativeHandle, useEffect } from 'react';
-import { Save, Bug, Brain, Calendar, RotateCcw, Code2, AlertTriangle, Key, Cpu, Sparkles, MessageSquare, Wind, CheckCircle2, XCircle, Loader2, Moon, Sun, Monitor, TableProperties, ChevronDown, Globe, Network, Zap } from 'lucide-react';
+import { Save, Bug, Brain, Calendar, RotateCcw, Code2, AlertTriangle, Key, Cpu, Sparkles, MessageSquare, Wind, CheckCircle2, XCircle, Loader2, Moon, Sun, Monitor, TableProperties, ChevronDown, Globe, Network, Zap, Info } from 'lucide-react';
 import { AppSettings, AIProvider } from '../types';
 import { getSettings, saveSettings, resetSettings } from '../services/settingsService';
 import { verifyApiKey } from '../services/aiService';
@@ -71,6 +71,8 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [appVersion, setAppVersion] = useState<string>('Loading...');
+  const [officialUrl, setOfficialUrl] = useState<string>('');
   
   const hasChanges = JSON.stringify(settings) !== JSON.stringify(initialSettings);
 
@@ -92,6 +94,20 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
           setSettings(prev => ({ ...prev, activeModel: validModels[0] }));
       }
   }, [settings.activeProvider]);
+
+  // Fetch dynamic app version and official URL from config.json
+  useEffect(() => {
+      fetch(import.meta.env.BASE_URL + 'config.json?t=' + new Date().getTime())
+          .then(res => res.json())
+          .then(data => {
+              if (data.version) setAppVersion('v' + data.version);
+              if (data.officialUrl) setOfficialUrl(data.officialUrl);
+          })
+          .catch(err => {
+              console.error('Failed to load config.json', err);
+              setAppVersion('Unknown');
+          });
+  }, []);
 
   const [verifying, setVerifying] = useState<Record<string, boolean>>({});
   const [verifyResult, setVerifyResult] = useState<Record<string, 'success' | 'error' | null>>({});
@@ -385,6 +401,36 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
                         <input type="checkbox" checked={settings.debugMode} onChange={(e) => setSettings({...settings, debugMode: e.target.checked})} className="sr-only peer" />
                         <div className="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:bg-blue-600"></div>
                     </label>
+                </div>
+            </section>
+
+            {/* About / App Info */}
+            <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded-lg"><Info className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /></div>
+                    <h3 className="font-bold text-slate-800 dark:text-white">About TimeSnap</h3>
+                </div>
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <div>
+                            <h4 className="font-semibold text-slate-800 dark:text-white">App Version</h4>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Current installed build</p>
+                        </div>
+                        <span className="px-3 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-xs font-bold font-mono">
+                            {appVersion}
+                        </span>
+                    </div>
+                    {officialUrl && (
+                        <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <div>
+                                <h4 className="font-semibold text-slate-800 dark:text-white">Official URL</h4>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">Latest updates home</p>
+                            </div>
+                            <a href={officialUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all max-w-[50%] text-right">
+                                {officialUrl.replace(/^https?:\/\//, '')}
+                            </a>
+                        </div>
+                    )}
                 </div>
             </section>
         </div>

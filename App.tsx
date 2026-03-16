@@ -437,7 +437,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-10 transition-colors duration-200">
       <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm h-16 flex items-center px-4">
-        <div className="w-full max-w-4xl mx-auto flex items-center justify-between">
+        <div className="w-full max-w-[1600px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
             {(appState !== AppState.HOME || overlay) && (
               <button onClick={goBack} disabled={isBusy} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-50"><ArrowLeft className="w-5 h-5" /></button>
@@ -454,17 +454,17 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto relative">
+      <main className="w-full max-w-[1600px] mx-auto relative">
         {overlay === "settings" && (
             <div className="fixed inset-0 top-16 z-40 bg-slate-50 dark:bg-slate-950 flex flex-col">
-                <div className="max-w-4xl mx-auto w-full flex-1 overflow-hidden flex flex-col">
+                <div className="max-w-[1600px] mx-auto w-full flex-1 overflow-hidden flex flex-col">
                     <SettingsView ref={settingsRef} onClose={() => setOverlay(null)} />
                 </div>
             </div>
         )}
         {overlay === "history" && (
             <div className="fixed inset-0 top-16 z-40 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
-                <div className="max-w-4xl mx-auto min-h-full p-4">
+                <div className="max-w-[1600px] mx-auto min-h-full p-4">
                     <HistoryList history={history} onSelect={handleLoadHistory} onDelete={handleDeleteHistory} />
                 </div>
             </div>
