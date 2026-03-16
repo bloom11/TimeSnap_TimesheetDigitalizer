@@ -18,6 +18,7 @@ INSTRUCTIONS:
 6. Return purely a JSON Array containing the extracted rows.
 
 IMPORTANT:
+- If a row has a date but NO time values (e.g., absence, holiday, or blank row), YOU MUST INCLUDE IT.
 - If the document contains multiple tables, lists, or sections separated by a vertical gap or visual break (e.g., a "hole" in the middle), YOU MUST EXTRACT DATA FROM ALL SECTIONS. 
 - Do not stop processing at the first gap. Continue reading until the end of the page.
 - Combine all rows from all sections into a single continuous array.
