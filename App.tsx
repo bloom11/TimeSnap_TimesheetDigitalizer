@@ -3,10 +3,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, History, Settings, RotateCcw, X, AlertTriangle, Monitor, Smartphone, Loader2, Play, Trash2, WifiOff, CheckCircle2, Layers, Cpu, MousePointer2 } from "lucide-react";
 
 import { AppState, ProcessingStatus, TimeEntry, SavedScan, ColumnConfig, FormulaType } from "./types";
-import { getHistory, saveScan, deleteScan, updateScan } from "./services/storageService";
+import { getHistory, saveScan, deleteScan, updateScan, updateScanName } from "./services/storageService";
 import { applyTheme, getSettings } from "./services/settingsService";
 import { SyncService } from "./services/syncService";
 import { extractTimeDataFromImage } from "./services/aiService";
+import { applyFormulas } from "./services/formulaEngine";
 
 import HomeView from "./components/HomeView";
 import Scanner from "./components/Scanner";
@@ -29,67 +30,13 @@ type ConfirmState = {
   cancelText?: string;
 };
 
-// Global Calculation Helper
-const calculateValue = (row: TimeEntry, config: ColumnConfig, index: number): string => {
-    const { formula, paramA, paramB, staticValue } = config;
-    if (formula === 'none') return row[config.key] || '';
-    if (formula === 'static') return staticValue;
-    
-    if (formula === 'increment') {
-        const step = parseFloat(paramA) || 1;
-        if (paramB === 'date') {
-            const parts = staticValue.replace(/[\.-]/g, '/').split('/');
-            if (parts.length === 3) {
-                let d = parseInt(parts[0], 10);
-                let m = parseInt(parts[1], 10) - 1;
-                let y = parseInt(parts[2], 10);
-                if (y < 100) y += 2000;
-                const dateObj = new Date(y, m, d);
-                if (!isNaN(dateObj.getTime())) {
-                    dateObj.setDate(dateObj.getDate() + (index * step));
-                    return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                }
-            }
-            return staticValue;
-        } else {
-            const start = parseFloat(staticValue) || 0;
-            return String(start + (index * step));
-        }
-    }
-
-    const valA = row[paramA] || '';
-    const valB = row[paramB] || '';
-
-    if (formula === 'concat') return `${valA} ${valB}`.trim();
-
-    const toMins = (t: string) => {
-        if (!t || !t.includes(':')) return NaN;
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-    };
-    
-    const minsA = toMins(valA);
-    const minsB = toMins(valB);
-
-    if (isNaN(minsA) || isNaN(minsB)) return '';
-
-    let resultMins = 0;
-    if (formula === 'diff') resultMins = minsB - minsA;
-    else if (formula === 'sum') resultMins = minsA + minsB;
-
-    if (isNaN(resultMins)) return '';
-    const h = Math.floor(Math.abs(resultMins) / 60);
-    const m = Math.floor(Math.abs(resultMins) % 60);
-    const sign = resultMins < 0 ? '-' : '';
-    return `${sign}${h}:${m.toString().padStart(2, '0')}`;
-};
-
 export default function App() {
   const [appState, setAppState] = useState<AppState>(AppState.HOME);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [constants, setConstants] = useState<Record<string, string | number>>({});
   const [history, setHistory] = useState<SavedScan[]>([]);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>("idle");
   const [isAppending, setIsAppending] = useState(false);
@@ -159,6 +106,7 @@ export default function App() {
     setEntries([]);
     setColumnConfigs([]);
     setColumnOrder([]);
+    setConstants({});
     setCurrentScanId(null);
     setPreloadedOfflineImage(null);
     setProcessingStatus("idle");
@@ -170,6 +118,7 @@ export default function App() {
     setEntries([]);
     setColumnConfigs([]);
     setColumnOrder([]);
+    setConstants({});
     setCurrentScanId(null);
     if (syncService) {
         syncService.destroy();
@@ -230,19 +179,6 @@ export default function App() {
     });
   }, [appState, overlay, isBusy, entries.length, requestConfirm, doGoHomeAndClear, syncService]);
 
-  const applyFormulas = (data: TimeEntry[], configs: ColumnConfig[]): TimeEntry[] => {
-      if (configs.length === 0) return data;
-      return data.map((row, index) => {
-          const newRow = { ...row };
-          configs.forEach(cfg => {
-              if (cfg.formula !== 'none') {
-                  newRow[cfg.key] = calculateValue(row, cfg, index);
-              }
-          });
-          return newRow;
-      });
-  };
-
   const handleScanSuccess = useCallback(
     (newEntries: TimeEntry[]) => {
       setProcessingStatus("success");
@@ -302,26 +238,27 @@ export default function App() {
           merged = isAppending ? [...entries, ...newEntries] : newEntries;
       }
       
-      const updatedWithFormulas = applyFormulas(merged, columnConfigs);
+      const updatedWithFormulas = applyFormulas(merged, columnConfigs, constants);
       setEntries(updatedWithFormulas);
 
       if (currentScanId) {
-           updateScan(currentScanId, updatedWithFormulas, columnConfigs);
+           updateScan(currentScanId, updatedWithFormulas, columnConfigs, columnOrder, constants);
       } else {
-           const saved = saveScan(updatedWithFormulas, columnConfigs);
+           const saved = saveScan(updatedWithFormulas, columnConfigs, columnOrder, constants);
            setCurrentScanId(saved.id);
       }
       
       setIsAppending(false);
       setAppState(AppState.REVIEW);
     },
-    [isAppending, currentScanId, entries, columnConfigs]
+    [isAppending, currentScanId, entries, columnConfigs, columnOrder, constants]
   );
   
   const handleLoadHistory = useCallback((scan: SavedScan) => {
     setEntries(scan.entries);
     setColumnConfigs(scan.columnConfigs || []);
     setColumnOrder(scan.columnOrder || []);
+    setConstants(scan.constants || {});
     setCurrentScanId(scan.id);
     setAppState(AppState.REVIEW);
     setOverlay(null);
@@ -335,23 +272,49 @@ export default function App() {
         setEntries([]);
         setColumnConfigs([]);
         setColumnOrder([]);
+        setConstants({});
         setAppState(AppState.HOME);
     }
   }, [currentScanId]);
 
-  const handleEntriesUpdate = (updatedEntries: TimeEntry[], updatedConfigs?: ColumnConfig[], updatedOrder?: string[]) => {
+  const handleEditScanName = useCallback((id: string, newName: string) => {
+    updateScanName(id, newName);
+    setHistory(getHistory());
+  }, []);
+
+  const handleEntriesUpdate = (
+    updatedEntries: TimeEntry[], 
+    updatedConfigs?: ColumnConfig[], 
+    updatedOrder?: string[],
+    updatedConstants?: Record<string, string | number>
+  ) => {
       const finalConfigs = updatedConfigs || columnConfigs;
       const finalOrder = updatedOrder || columnOrder;
-      const calculated = applyFormulas(updatedEntries, finalConfigs);
+      const finalConstants = updatedConstants || constants;
+      const calculated = applyFormulas(updatedEntries, finalConfigs, finalConstants);
       
       setEntries(calculated);
       if (updatedConfigs) setColumnConfigs(updatedConfigs);
       if (updatedOrder) setColumnOrder(updatedOrder);
+      if (updatedConstants) setConstants(updatedConstants);
 
       if (currentScanId) {
-          updateScan(currentScanId, calculated, finalConfigs, finalOrder);
+          updateScan(currentScanId, calculated, finalConfigs, finalOrder, finalConstants);
       } else {
-          const saved = saveScan(calculated, finalConfigs, finalOrder);
+          const saved = saveScan(calculated, finalConfigs, finalOrder, finalConstants);
+          setCurrentScanId(saved.id);
+      }
+  };
+
+  const handleConstantsUpdate = (newConstants: Record<string, string | number>) => {
+      setConstants(newConstants);
+      const calculated = applyFormulas(entries, columnConfigs, newConstants);
+      setEntries(calculated);
+      
+      if (currentScanId) {
+          updateScan(currentScanId, calculated, columnConfigs, columnOrder, newConstants);
+      } else {
+          const saved = saveScan(calculated, columnConfigs, columnOrder, newConstants);
           setCurrentScanId(saved.id);
       }
   };
@@ -465,7 +428,7 @@ export default function App() {
         {overlay === "history" && (
             <div className="fixed inset-0 top-16 z-40 bg-slate-50 dark:bg-slate-950 overflow-y-auto">
                 <div className="max-w-[1600px] mx-auto min-h-full p-4">
-                    <HistoryList history={history} onSelect={handleLoadHistory} onDelete={handleDeleteHistory} />
+                    <HistoryList history={history} onSelect={handleLoadHistory} onDelete={handleDeleteHistory} onEditName={handleEditScanName} />
                 </div>
             </div>
         )}
@@ -551,7 +514,7 @@ export default function App() {
               />
           )}
 
-          {appState === AppState.REVIEW && (<DataReview key={currentScanId || 'new'} data={entries} configs={columnConfigs} initialColumnOrder={columnOrder} onUpdate={handleEntriesUpdate} onNext={() => setAppState(AppState.EXPORT)} onScanMore={scanMore} onRequestConfirm={requestConfirm} />)}
+          {appState === AppState.REVIEW && (<DataReview key={currentScanId || 'new'} data={entries} configs={columnConfigs} initialColumnOrder={columnOrder} constants={constants} onUpdate={handleEntriesUpdate} onUpdateConstants={handleConstantsUpdate} onNext={() => setAppState(AppState.EXPORT)} onScanMore={scanMore} onRequestConfirm={requestConfirm} />)}
           {appState === AppState.EXPORT && (<div className="animate-slide-up pt-8 px-4"><ExcelManager key={currentScanId || 'new'} data={entries} configs={columnConfigs} columnOrder={columnOrder} onBack={() => setAppState(AppState.REVIEW)} onScanMore={scanMore} onHome={() => requestConfirm({ title: "Return Home", message: "Finish export session?", confirmText: "Yes, Done" }, doGoHomeAndClear)} /></div>)}
         </div>
       </main>

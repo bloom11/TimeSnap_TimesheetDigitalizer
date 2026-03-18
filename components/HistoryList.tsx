@@ -1,20 +1,23 @@
 
 import React, { useRef, useState } from 'react';
-import { Clock, ChevronRight, Trash2, Calendar, FileText, FileJson, UploadCloud } from 'lucide-react';
+import { Clock, ChevronRight, Trash2, Calendar, FileText, FileJson, UploadCloud, Edit2 } from 'lucide-react';
 import { SavedScan } from '../types';
 import { getSettings } from '../services/settingsService';
 import { importSavedScan, getHistory } from '../services/storageService';
+import EditScanNameModal from './EditScanNameModal';
 
 interface HistoryListProps {
   history: SavedScan[];
   onSelect: (scan: SavedScan) => void;
   onDelete: (id: string) => void;
+  onEditName: (id: string, newName: string) => void;
 }
 
-const HistoryList: React.FC<HistoryListProps> = ({ history: initialHistory, onSelect, onDelete }) => {
+const HistoryList: React.FC<HistoryListProps> = ({ history: initialHistory, onSelect, onDelete, onEditName }) => {
   const settings = getSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [localHistory, setLocalHistory] = useState<SavedScan[]>(initialHistory);
+  const [editingScan, setEditingScan] = useState<SavedScan | null>(null);
 
   // Sync prop updates to local state
   React.useEffect(() => {
@@ -136,8 +139,17 @@ const HistoryList: React.FC<HistoryListProps> = ({ history: initialHistory, onSe
                  )}
 
                  <button 
+                    onClick={(e) => { e.stopPropagation(); setEditingScan(scan); }}
+                    className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                    title="Edit Scan Name"
+                >
+                    <Edit2 className="w-4 h-4" />
+                </button>
+
+                 <button 
                     onClick={(e) => { e.stopPropagation(); onDelete(scan.id); }}
                     className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="Delete Scan"
                 >
                     <Trash2 className="w-4 h-4" />
                 </button>
@@ -146,6 +158,18 @@ const HistoryList: React.FC<HistoryListProps> = ({ history: initialHistory, onSe
           </div>
         ))}
       </div>
+
+      {editingScan && (
+        <EditScanNameModal
+          isOpen={!!editingScan}
+          onClose={() => setEditingScan(null)}
+          initialName={editingScan.name}
+          onSave={(newName) => {
+            onEditName(editingScan.id, newName);
+            setEditingScan(null);
+          }}
+        />
+      )}
     </div>
   );
 };

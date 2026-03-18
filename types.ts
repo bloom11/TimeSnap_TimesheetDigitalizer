@@ -9,7 +9,7 @@ export interface TimeEntry {
   [key: string]: any; 
 }
 
-export type FormulaType = 'none' | 'diff' | 'sum' | 'concat' | 'static' | 'increment';
+export type FormulaType = 'none' | 'diff' | 'sum' | 'concat' | 'static' | 'increment' | 'complex';
 
 export interface ColumnConfig {
     key: string;
@@ -18,6 +18,11 @@ export interface ColumnConfig {
     paramA: string;
     paramB: string;
     staticValue: string;
+    complexFormula?: string;
+    timeSeparator?: string;
+    timeFormat?: '12h' | '24h';
+    keepEmptyIfNegative?: boolean;
+    defaultTextColor?: string;
 }
 
 export interface SavedScan {
@@ -27,6 +32,16 @@ export interface SavedScan {
   entries: TimeEntry[];
   columnConfigs?: ColumnConfig[]; // New: persists the logic for this scan
   columnOrder?: string[]; // New: persists the column order
+  constants?: Record<string, string | number>; // New: persists constants for complex formulas
+}
+
+export interface TableProfile {
+  id: string;
+  name: string;
+  columnConfigs: ColumnConfig[];
+  columnOrder: string[];
+  constants: Record<string, string | number>;
+  updatedAt: number;
 }
 
 export interface ExcelColumnMapping {

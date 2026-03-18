@@ -14,7 +14,7 @@ export const getHistory = (): SavedScan[] => {
   }
 };
 
-export const saveScan = (entries: TimeEntry[], columnConfigs?: ColumnConfig[], columnOrder?: string[]): SavedScan => {
+export const saveScan = (entries: TimeEntry[], columnConfigs?: ColumnConfig[], columnOrder?: string[], constants?: Record<string, string | number>): SavedScan => {
   const history = getHistory();
   const newScan: SavedScan = {
     id: `scan-${Date.now()}`,
@@ -22,7 +22,8 @@ export const saveScan = (entries: TimeEntry[], columnConfigs?: ColumnConfig[], c
     name: `Scan ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
     entries,
     columnConfigs,
-    columnOrder
+    columnOrder,
+    constants
   };
   
   const updatedHistory = [newScan, ...history].slice(0, 20);
@@ -30,13 +31,14 @@ export const saveScan = (entries: TimeEntry[], columnConfigs?: ColumnConfig[], c
   return newScan;
 };
 
-export const updateScan = (id: string, entries: TimeEntry[], columnConfigs?: ColumnConfig[], columnOrder?: string[]) => {
+export const updateScan = (id: string, entries: TimeEntry[], columnConfigs?: ColumnConfig[], columnOrder?: string[], constants?: Record<string, string | number>) => {
   const history = getHistory();
   const updated = history.map(h => h.id === id ? { 
     ...h, 
     entries, 
     columnConfigs: columnConfigs || h.columnConfigs,
-    columnOrder: columnOrder || h.columnOrder
+    columnOrder: columnOrder || h.columnOrder,
+    constants: constants || h.constants
   } : h);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 };
@@ -64,7 +66,9 @@ export const importSavedScan = (jsonString: string): boolean => {
             timestamp: parsed.timestamp || Date.now(),
             name: parsed.name ? `${parsed.name} (Imported)` : `Imported Scan ${new Date().toLocaleTimeString()}`,
             entries: parsed.entries,
-            columnConfigs: parsed.columnConfigs
+            columnConfigs: parsed.columnConfigs,
+            columnOrder: parsed.columnOrder,
+            constants: parsed.constants
         };
 
         const updatedHistory = [newScan, ...history].slice(0, 25);

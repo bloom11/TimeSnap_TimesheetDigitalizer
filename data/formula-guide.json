@@ -1,0 +1,305 @@
+{
+  "id": "formula-guide-doc",
+  "title": "Formula Guide & Examples",
+  "description": "Learn how to write powerful formulas to calculate time, differences, and custom logic.",
+  "sections": [
+    {
+      "id": "rules",
+      "title": "Rules & Basics",
+      "summary": "Core concepts for writing formulas in this application.",
+      "order": 1,
+      "subsections": [
+        {
+          "id": "rule-time-parsing",
+          "title": "Time Parsing & Minutes",
+          "summary": "How time values are handled internally.",
+          "notes": [
+            "All referenced time cells (e.g., [entrance], [exit]) are automatically converted to total minutes before evaluation.",
+            "For example, '8:30' becomes 510 minutes.",
+            "Empty or invalid cell values become 0 during evaluation."
+          ]
+        },
+        {
+          "id": "rule-cell-references",
+          "title": "Cell References",
+          "summary": "How to refer to other columns and rows.",
+          "notes": [
+            "Use [columnKey] to reference the value of a column in the current row (e.g., [entrance], [exit]).",
+            "Use [PREV_CELL] to reference the value of the SAME column in the PREVIOUS row. Useful for running totals or cumulative sums.",
+            "Constants defined in the settings can be used directly by typing their name (e.g., hourlyRate)."
+          ]
+        },
+        {
+          "id": "rule-output-format",
+          "title": "Output Formatting",
+          "summary": "Controlling how the result is displayed.",
+          "notes": [
+            "The default output format is NUMBER.",
+            "Use TIME(expression) to force the final result to be formatted as a time string (e.g., 'HH:MM').",
+            "Use NUM(expression) to force the result to be a number.",
+            "Use STRING(expression) to force the result to be a string.",
+            "The 'Keep Empty if Negative' column setting will blank the cell if the final numeric result is less than 0 (applies to NUMBER and TIME outputs)."
+          ]
+        },
+        {
+          "id": "rule-time-literals",
+          "title": "Time Literals",
+          "summary": "Writing time values directly in formulas.",
+          "notes": [
+            "You can write time values directly using wrapper functions without quotes.",
+            "TIME(8:30) represents the time 8:30 (evaluates to 510 minutes).",
+            "HOURS(8:30) represents 8.5 hours.",
+            "MINS(30) represents 30 minutes."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "operators",
+      "title": "Operators",
+      "summary": "Mathematical and logical operators available.",
+      "order": 2,
+      "notes": [
+        "Arithmetic: + (add), - (subtract), * (multiply), / (divide), () (grouping)",
+        "Comparison: == (equal), != (not equal), < (less than), > (greater than), <= (less or equal), >= (greater or equal)",
+        "Logical: && (AND), || (OR), ! (NOT)",
+        "Ternary: condition ? trueValue : falseValue (e.g., [exit] > TIME(17:00) ? \"Overtime\" : \"Regular\")"
+      ]
+    },
+    {
+      "id": "functions",
+      "title": "Available Functions",
+      "summary": "Built-in functions you can use in your formulas.",
+      "order": 3,
+      "items": [
+        {
+          "id": "fn-if",
+          "name": "IF",
+          "signature": "IF(condition, trueValue, falseValue)",
+          "summary": "Returns trueValue if condition is true, otherwise returns falseValue.",
+          "returns": ["Any"]
+        },
+        {
+          "id": "fn-time",
+          "name": "TIME",
+          "signature": "TIME(value)",
+          "summary": "Forces the output to be formatted as time (HH:MM). Also used to write time literals like TIME(8:30).",
+          "returns": ["Time String", "Minutes (Number)"]
+        },
+        {
+          "id": "fn-hours",
+          "name": "HOURS",
+          "signature": "HOURS(value)",
+          "summary": "Converts a time literal or number into hours. E.g., HOURS(8:30) becomes 8.5. HOURS(120) becomes 2.",
+          "returns": ["Hours (Number)"]
+        },
+        {
+          "id": "fn-mins",
+          "name": "MINS",
+          "signature": "MINS(value)",
+          "summary": "Parses a time literal into minutes, or keeps a number as minutes. E.g., MINS(1:30) becomes 90.",
+          "returns": ["Minutes (Number)"]
+        },
+        {
+          "id": "fn-num",
+          "name": "NUM",
+          "signature": "NUM(value)",
+          "summary": "Forces the output to be formatted as a number.",
+          "returns": ["Number"]
+        },
+        {
+          "id": "fn-string",
+          "name": "STRING",
+          "signature": "STRING(value)",
+          "summary": "Forces the output to be formatted as a string.",
+          "returns": ["String"]
+        },
+        {
+          "id": "fn-max",
+          "name": "MAX",
+          "signature": "MAX(value1, value2, ...)",
+          "summary": "Returns the largest of the given values.",
+          "returns": ["Number"]
+        },
+        {
+          "id": "fn-min",
+          "name": "MIN",
+          "signature": "MIN(value1, value2, ...)",
+          "summary": "Returns the smallest of the given values.",
+          "returns": ["Number"]
+        },
+        {
+          "id": "fn-round",
+          "name": "ROUND",
+          "signature": "ROUND(value)",
+          "summary": "Rounds a number to the nearest integer.",
+          "returns": ["Number"]
+        },
+        {
+          "id": "fn-floor",
+          "name": "FLOOR",
+          "signature": "FLOOR(value)",
+          "summary": "Rounds a number down to the nearest integer.",
+          "returns": ["Number"]
+        },
+        {
+          "id": "fn-ceil",
+          "name": "CEIL",
+          "signature": "CEIL(value)",
+          "summary": "Rounds a number up to the nearest integer.",
+          "returns": ["Number"]
+        },
+        {
+          "id": "fn-abs",
+          "name": "ABS",
+          "signature": "ABS(value)",
+          "summary": "Returns the absolute value of a number.",
+          "returns": ["Number"]
+        },
+        {
+          "id": "fn-and",
+          "name": "AND",
+          "signature": "AND(condition1, condition2, ...)",
+          "summary": "Returns TRUE if all conditions are true. Can also use && operator.",
+          "returns": ["Boolean"]
+        },
+        {
+          "id": "fn-or",
+          "name": "OR",
+          "signature": "OR(condition1, condition2, ...)",
+          "summary": "Returns TRUE if at least one condition is true. Can also use || operator.",
+          "returns": ["Boolean"]
+        },
+        {
+          "id": "fn-not",
+          "name": "NOT",
+          "signature": "NOT(condition)",
+          "summary": "Returns the opposite of the condition. Can also use ! operator.",
+          "returns": ["Boolean"]
+        }
+      ]
+    },
+    {
+      "id": "examples",
+      "title": "Examples & Use Cases",
+      "summary": "Comprehensive examples showing how to combine functions and operators.",
+      "order": 4,
+      "groups": [
+        {
+          "id": "ex-basic-time",
+          "title": "Basic Time Calculations",
+          "examples": [
+            {
+              "id": "ex-duration",
+              "label": "Simple Duration",
+              "formula": "TIME([exit] - [entrance])",
+              "resultType": "Time String",
+              "note": "Calculates the time difference between exit and entrance, formatted as HH:MM."
+            },
+            {
+              "id": "ex-duration-lunch",
+              "label": "Duration minus Lunch",
+              "formula": "TIME(([exit] - [entrance]) - ([lunchEnd] - [lunchStart]))",
+              "resultType": "Time String",
+              "note": "Calculates total worked time by subtracting the lunch break duration."
+            },
+            {
+              "id": "ex-decimal-hours",
+              "label": "Convert to Decimal Hours",
+              "formula": "NUM(([exit] - [entrance]) / 60)",
+              "resultType": "Number",
+              "note": "Converts total minutes into decimal hours (e.g., 8:30 becomes 8.5)."
+            }
+          ]
+        },
+        {
+          "id": "ex-advanced-time",
+          "title": "Advanced Time Logic",
+          "examples": [
+            {
+              "id": "ex-night-shift",
+              "label": "Night Shift (Crossing Midnight)",
+              "formula": "TIME(IF([exit] < [entrance], ([exit] + HOURS(24)) - [entrance], [exit] - [entrance]))",
+              "resultType": "Time String",
+              "note": "Correctly calculates duration if the shift starts before midnight and ends after midnight."
+            },
+            {
+              "id": "ex-auto-lunch",
+              "label": "Auto-deduct 30m Lunch (if > 6h)",
+              "formula": "TIME([exit] - [entrance] - IF([exit] - [entrance] > HOURS(6), MINS(30), 0))",
+              "resultType": "Time String",
+              "note": "Automatically subtracts 30 minutes if the total time worked exceeds 6 hours."
+            },
+            {
+              "id": "ex-cap-hours",
+              "label": "Cap Maximum Hours at 12",
+              "formula": "TIME(MIN([exit] - [entrance], HOURS(12)))",
+              "resultType": "Time String",
+              "note": "Ensures the calculated time never exceeds 12 hours."
+            }
+          ]
+        },
+        {
+          "id": "ex-overtime",
+          "title": "Overtime Calculations",
+          "examples": [
+            {
+              "id": "ex-overtime-basic",
+              "label": "Overtime (after 8 hours)",
+              "formula": "TIME(MAX(0, ([exit] - [entrance]) - HOURS(8)))",
+              "resultType": "Time String",
+              "note": "Calculates any time worked beyond 8 hours. Returns 0:00 if less than 8 hours."
+            },
+            {
+              "id": "ex-regular-time",
+              "label": "Regular Time (capped at 8 hours)",
+              "formula": "TIME(MIN([exit] - [entrance], HOURS(8)))",
+              "resultType": "Time String",
+              "note": "Calculates regular hours worked, capped at a maximum of 8 hours."
+            }
+          ]
+        },
+        {
+          "id": "ex-logic-strings",
+          "title": "Logic, Strings & Comparisons",
+          "examples": [
+            {
+              "id": "ex-late-check",
+              "label": "Check if Late",
+              "formula": "IF([entrance] > TIME(9:00), \"Late\", \"On Time\")",
+              "resultType": "String",
+              "note": "Returns 'Late' if the entrance time is after 9:00 AM."
+            },
+            {
+              "id": "ex-status-ternary",
+              "label": "Status using Ternary Operator",
+              "formula": "([exit] - [entrance] > HOURS(8)) ? \"Overtime\" : \"Standard\"",
+              "resultType": "String",
+              "note": "A shorter way to write an IF statement using the ? : syntax."
+            },
+            {
+              "id": "ex-missing-punch",
+              "label": "Flag Missing Punches",
+              "formula": "([entrance] == 0 || [exit] == 0) ? \"Missing Punch\" : \"OK\"",
+              "resultType": "String",
+              "note": "Checks if either entrance or exit is empty (evaluates to 0)."
+            }
+          ]
+        },
+        {
+          "id": "ex-running-totals",
+          "title": "Running Totals & Previous Row",
+          "examples": [
+            {
+              "id": "ex-cumulative-sum",
+              "label": "Cumulative Sum (Running Total)",
+              "formula": "NUM([PREV_CELL] + ([exit] - [entrance]) / 60)",
+              "resultType": "Number",
+              "note": "Adds the current row's decimal hours to the previous row's total. Requires the column to be evaluated sequentially."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
