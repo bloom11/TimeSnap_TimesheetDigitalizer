@@ -11,6 +11,7 @@ export interface SettingsViewHandle {
 
 interface SettingsViewProps {
   onClose: () => void;
+  onOpenManualDataTransfer?: () => void;
 }
 
 const PROVIDER_MODELS: Record<AIProvider, { id: string, name: string }[]> = {
@@ -64,7 +65,7 @@ const PROVIDER_MODELS: Record<AIProvider, { id: string, name: string }[]> = {
     ]
 };
 
-const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClose }, ref) => {
+const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClose, onOpenManualDataTransfer }, ref) => {
   const [settings, setSettings] = useState<AppSettings>(() => getSettings());
   const [initialSettings, setInitialSettings] = useState<AppSettings>(settings);
   const [isSaved, setIsSaved] = useState(false);
@@ -97,7 +98,9 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
 
   // Fetch dynamic app version and official URL from config.json
   useEffect(() => {
-      fetch(import.meta.env.BASE_URL + 'config.json?t=' + new Date().getTime())
+      const configUrl = import.meta.env.BASE_URL + 'config.json';
+      fetch(configUrl + '?t=' + new Date().getTime())
+          .catch(() => fetch(configUrl))
           .then(res => res.json())
           .then(data => {
               if (data.version) setAppVersion('v' + data.version);
@@ -401,6 +404,35 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
                         <input type="checkbox" checked={settings.debugMode} onChange={(e) => setSettings({...settings, debugMode: e.target.checked})} className="sr-only peer" />
                         <div className="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:bg-blue-600"></div>
                     </label>
+                </div>
+            </section>
+
+            {/* Data Management */}
+            <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg"><Save className="w-5 h-5 text-emerald-600 dark:text-emerald-400" /></div>
+                    <h3 className="font-bold text-slate-800 dark:text-white">Data Management</h3>
+                </div>
+                <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 gap-4">
+                        <div className="flex-1">
+                            <h4 className="font-semibold text-slate-800 dark:text-white">Manual Export / Import</h4>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Backup or restore your scans and profiles.</p>
+                        </div>
+                        <button 
+                            onClick={() => {
+                                if (hasChanges) {
+                                    setPendingAction(() => onOpenManualDataTransfer);
+                                    setShowUnsavedModal(true);
+                                } else {
+                                    onOpenManualDataTransfer?.();
+                                }
+                            }}
+                            className="px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors shadow-sm whitespace-nowrap shrink-0 text-sm"
+                        >
+                            Open Tool
+                        </button>
+                    </div>
                 </div>
             </section>
 
