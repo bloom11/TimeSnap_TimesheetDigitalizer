@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>TimeSnap - Redirecting...</title>
+    <script type="text/javascript">
+      // This script handles GitHub Pages 404 errors for Single Page Apps.
+      // It redirects the user back to the root of the app.
+      
+      var l = window.location;
+      // Determine if we are on a GitHub Pages sub-directory (e.g., username.github.io/repo-name/)
+      var pathSegments = l.pathname.split('/');
+      var basePath = '/';
+      
+      // If deployed to a subfolder (like /TimeSnap/), keep that base path
+      if (pathSegments.length > 1 && pathSegments[1] !== '') {
+        basePath = '/' + pathSegments[1] + '/';
+      }
+
+      // Redirect to the base path
+      l.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + basePath);
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to the app...</p>
+  </body>
+</html>
