@@ -2,6 +2,27 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@layer utilities {
+  .hide-scroll-until-touch::-webkit-scrollbar {
+    height: 4px;
+  }
+  .hide-scroll-until-touch::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .hide-scroll-until-touch::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 4px;
+  }
+  .hide-scroll-until-touch:hover::-webkit-scrollbar-thumb,
+  .hide-scroll-until-touch:active::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+  }
+  .dark .hide-scroll-until-touch:hover::-webkit-scrollbar-thumb,
+  .dark .hide-scroll-until-touch:active::-webkit-scrollbar-thumb {
+    background: #475569;
+  }
+}
+
 body {
   font-family: 'Inter', sans-serif;
 }

@@ -30,7 +30,8 @@ export const UpdatePrompt: React.FC = () => {
     const checkRemoteConfig = async () => {
       try {
         // Fetch the config file
-        const res = await fetch(REMOTE_CONFIG_URL + '?t=' + new Date().getTime()); // Cache buster
+        const res = await fetch(REMOTE_CONFIG_URL + '?t=' + new Date().getTime())
+            .catch(() => fetch(REMOTE_CONFIG_URL)); // Fallback for offline
         if (!res.ok) return;
         const config = await res.json();
         

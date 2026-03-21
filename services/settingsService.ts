@@ -1,4 +1,4 @@
-import { AppSettings } from "../types";
+import { AppSettings, SyncSettingsPayload } from "../types";
 import CryptoJS from "crypto-js";
 
 const SETTINGS_KEY = 'timesnap_settings';
@@ -243,4 +243,55 @@ export const resetSettings = (): AppSettings => {
   } catch(e) {}
   applyTheme();
   return DEFAULT_SETTINGS;
+};
+
+export const exportSettingsByCategory = (categories: string[]): SyncSettingsPayload => {
+    const current = getSettings();
+    const payload: SyncSettingsPayload = {};
+
+    if (categories.includes('appearance')) {
+        payload.appearance = { theme: current.theme };
+    }
+    if (categories.includes('aiConfig')) {
+        payload.aiConfig = { 
+            activeProvider: current.activeProvider, 
+            activeModel: current.activeModel, 
+            debugMode: current.debugMode 
+        };
+    }
+    if (categories.includes('prompts')) {
+        payload.prompts = { 
+            aiSystemPrompt: current.aiSystemPrompt, 
+            aiMappingPrompt: current.aiMappingPrompt, 
+            aiOutputSchema: current.aiOutputSchema 
+        };
+    }
+    if (categories.includes('general')) {
+        payload.general = { defaultYear: current.defaultYear };
+    }
+
+    return payload;
+};
+
+export const applyImportedSettings = (
+    importedSettings: SyncSettingsPayload, 
+    categoriesToApply: string[]
+) => {
+    const currentSettings = getSettings();
+    let newSettings = { ...currentSettings };
+
+    if (categoriesToApply.includes('appearance') && importedSettings.appearance) {
+        newSettings = { ...newSettings, ...importedSettings.appearance };
+    }
+    if (categoriesToApply.includes('aiConfig') && importedSettings.aiConfig) {
+        newSettings = { ...newSettings, ...importedSettings.aiConfig };
+    }
+    if (categoriesToApply.includes('prompts') && importedSettings.prompts) {
+        newSettings = { ...newSettings, ...importedSettings.prompts };
+    }
+    if (categoriesToApply.includes('general') && importedSettings.general) {
+        newSettings = { ...newSettings, ...importedSettings.general };
+    }
+
+    saveSettings(newSettings);
 };
