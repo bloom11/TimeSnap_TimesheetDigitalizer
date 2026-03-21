@@ -63,11 +63,7 @@ export enum AppState {
   REVIEW = 'REVIEW',
   EXPORT = 'EXPORT',
   SYNC_HOST = 'SYNC_HOST', 
-  SYNC_CLIENT = 'SYNC_CLIENT',
-  DATA_SYNC_SELECTION = 'DATA_SYNC_SELECTION',
-  DATA_SYNC_HOST = 'DATA_SYNC_HOST',
-  DATA_SYNC_CLIENT = 'DATA_SYNC_CLIENT',
-  MANUAL_DATA_TRANSFER = 'MANUAL_DATA_TRANSFER'
+  SYNC_CLIENT = 'SYNC_CLIENT' 
 }
 
 export type ProcessingStatus = 'idle' | 'processing' | 'success' | 'error';
@@ -132,21 +128,7 @@ export interface Point {
   y: number;
 }
 
-export type PeerMessageType = 'HANDSHAKE' | 'IMAGE_DATA' | 'STATUS_UPDATE' | 'DISCONNECT_SIGNAL' | 'SYNC_DATA_PAYLOAD' | 'SYNC_ACK';
-
-export interface SyncSettingsPayload {
-    appearance?: { theme: 'light' | 'dark' | 'system' };
-    aiConfig?: { activeProvider: AIProvider; activeModel: string; debugMode: boolean };
-    prompts?: { aiSystemPrompt: string; aiMappingPrompt: string; aiOutputSchema: string };
-    general?: { defaultYear: string };
-}
-
-export interface SyncDataPayload {
-  scans: SavedScan[];
-  tableProfiles: TableProfile[];
-  exportProfiles: ExportProfile[];
-  settings?: SyncSettingsPayload;
-}
+export type PeerMessageType = 'HANDSHAKE' | 'IMAGE_DATA' | 'STATUS_UPDATE' | 'DISCONNECT_SIGNAL';
 
 export interface PeerMessage {
   type: PeerMessageType;

@@ -5,29 +5,19 @@ import { Smartphone, Monitor, ChevronRight, X, Scan, Zap } from 'lucide-react';
 interface HomeViewProps {
   onStart: () => void;
   showModalityModal?: boolean;
-  showDataSyncModal?: boolean;
   onSelectLocal?: () => void;
   onSelectHost?: () => void;
   onSelectClient?: () => void;
-  onSelectDataSyncHost?: () => void;
-  onSelectDataSyncClient?: () => void;
-  onSelectManualDataTransfer?: () => void;
   onCancel?: () => void;
-  onDataSync?: () => void;
 }
 
 const HomeView: React.FC<HomeViewProps> = ({ 
     onStart, 
     showModalityModal = false, 
-    showDataSyncModal = false,
     onSelectLocal, 
     onSelectHost, 
     onSelectClient, 
-    onSelectDataSyncHost,
-    onSelectDataSyncClient,
-    onSelectManualDataTransfer,
-    onCancel,
-    onDataSync
+    onCancel 
 }) => {
   const [remoteSelection, setRemoteSelection] = useState(false);
 
@@ -47,14 +37,6 @@ const HomeView: React.FC<HomeViewProps> = ({
         >
             <Scan className="w-6 h-6" />
             Start Digitizing
-        </button>
-
-        <button 
-            onClick={onDataSync}
-            className="w-full max-w-xs mt-4 bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold py-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center text-lg gap-2"
-        >
-            <Zap className="w-6 h-6" />
-            Share / Sync Data
         </button>
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-3xl">
@@ -156,59 +138,6 @@ const HomeView: React.FC<HomeViewProps> = ({
                                 </div>
                             </div>
                         )}
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {/* Data Sync Modal */}
-        {showDataSyncModal && (
-            <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-                <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Data Synchronization</h2>
-                        <button onClick={onCancel} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
-                            <X className="w-5 h-5 text-slate-500" />
-                        </button>
-                    </div>
-
-                    <div className="p-6 space-y-6">
-                        <div className="text-center">
-                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-6">Choose your role for data synchronization.</p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <button 
-                                onClick={onSelectDataSyncHost}
-                                className="flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-200 dark:border-slate-700 rounded-3xl hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all group"
-                            >
-                                <div className="bg-white dark:bg-slate-700 p-4 rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform">
-                                    <Monitor className="w-10 h-10 text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                                </div>
-                                <span className="font-bold text-slate-800 dark:text-white">Host Device</span>
-                                <span className="text-[10px] text-slate-500 text-center mt-2 leading-tight uppercase tracking-wider">Generate QR Code<br/>to pair</span>
-                            </button>
-
-                            <button 
-                                onClick={onSelectDataSyncClient}
-                                className="flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-800/50 border-2 border-slate-200 dark:border-slate-700 rounded-3xl hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all group"
-                            >
-                                <div className="bg-white dark:bg-slate-700 p-4 rounded-2xl shadow-sm mb-4 group-hover:scale-110 transition-transform">
-                                    <Smartphone className="w-10 h-10 text-slate-700 dark:text-slate-300 group-hover:text-purple-600 dark:group-hover:text-purple-400" />
-                                </div>
-                                <span className="font-bold text-slate-800 dark:text-white">Client Device</span>
-                                <span className="text-[10px] text-slate-500 text-center mt-2 leading-tight uppercase tracking-wider">Scan QR Code<br/>to pair</span>
-                            </button>
-                        </div>
-                        
-                        <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 text-center">
-                            <button 
-                                onClick={onSelectManualDataTransfer}
-                                className="text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                            >
-                                Export / Import Manually
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>

@@ -16,8 +16,6 @@ import ExcelManager from "./components/ExcelManager";
 import SettingsView, { SettingsViewHandle } from "./components/SettingsView";
 import HistoryList from "./components/HistoryList";
 import SyncPairing from "./components/SyncPairing";
-import DataSyncManager from "./components/DataSyncManager";
-import ManualDataTransfer from "./components/ManualDataTransfer";
 import DebugConsole from "./components/DebugConsole";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { UpdatePrompt } from "./components/UpdatePrompt";
@@ -157,15 +155,9 @@ export default function App() {
         if (isBusy) return;
         if (overlay) { setOverlay(null); return; }
         if (appState === AppState.EXPORT) { setAppState(AppState.REVIEW); return; }
-        if (appState === AppState.MODALITY_SELECTION || appState === AppState.DATA_SYNC_SELECTION || appState === AppState.MANUAL_DATA_TRANSFER) { setAppState(AppState.HOME); return; }
+        if (appState === AppState.MODALITY_SELECTION) { setAppState(AppState.HOME); return; }
         if (appState === AppState.SYNC_HOST || appState === AppState.SYNC_CLIENT) {
             setAppState(AppState.MODALITY_SELECTION);
-            syncService?.destroy();
-            setSyncService(null);
-            return;
-        }
-        if (appState === AppState.DATA_SYNC_HOST || appState === AppState.DATA_SYNC_CLIENT) {
-            setAppState(AppState.DATA_SYNC_SELECTION);
             syncService?.destroy();
             setSyncService(null);
             return;
@@ -374,7 +366,7 @@ export default function App() {
   const handleClientConnect = (service: SyncService) => {
       setSyncService(service);
       setSyncConnected(true);
-      setAppState(prev => prev === AppState.DATA_SYNC_CLIENT ? AppState.DATA_SYNC_CLIENT : AppState.SCANNING);
+      setAppState(AppState.SCANNING);
   };
   
   const onSyncStatusChange = (msg: string, connected: boolean) => {
@@ -395,13 +387,11 @@ export default function App() {
     if (overlay === "history") return "History";
     if (appState === AppState.HOME) return "TimeSnap";
     if (appState === AppState.MODALITY_SELECTION) return "Choose Workflow";
-    if (appState === AppState.DATA_SYNC_SELECTION) return "Data Sync";
-    if (appState === AppState.MANUAL_DATA_TRANSFER) return "Manual Transfer";
     if (appState === AppState.SCANNING) return syncService ? "Remote Scan" : "Scanning";
     if (appState === AppState.REVIEW) return "Review";
     if (appState === AppState.EXPORT) return "Export";
-    if (appState === AppState.SYNC_HOST || appState === AppState.DATA_SYNC_HOST) return "Desktop Station";
-    if (appState === AppState.SYNC_CLIENT || appState === AppState.DATA_SYNC_CLIENT) return "Mobile Scanner";
+    if (appState === AppState.SYNC_HOST) return "Desktop Station";
+    if (appState === AppState.SYNC_CLIENT) return "Mobile Scanner";
     return "TimeSnap";
   }, [appState, overlay, syncService]);
 
@@ -431,7 +421,7 @@ export default function App() {
         {overlay === "settings" && (
             <div className="fixed inset-0 top-16 z-40 bg-slate-50 dark:bg-slate-950 flex flex-col">
                 <div className="max-w-[1600px] mx-auto w-full flex-1 overflow-hidden flex flex-col">
-                    <SettingsView ref={settingsRef} onClose={() => setOverlay(null)} onOpenManualDataTransfer={() => { setOverlay(null); setAppState(AppState.MANUAL_DATA_TRANSFER); }} />
+                    <SettingsView ref={settingsRef} onClose={() => setOverlay(null)} />
                 </div>
             </div>
         )}
@@ -444,10 +434,8 @@ export default function App() {
         )}
 
         <div className={overlay ? "hidden" : "block"}>
-          {appState === AppState.HOME && (<HomeView onStart={startNewScan} onDataSync={() => setAppState(AppState.DATA_SYNC_SELECTION)} />)}
+          {appState === AppState.HOME && (<HomeView onStart={startNewScan} />)}
           {appState === AppState.MODALITY_SELECTION && (<HomeView onStart={startNewScan} showModalityModal={true} onSelectLocal={doStartNewScan} onSelectHost={() => setAppState(AppState.SYNC_HOST)} onSelectClient={() => setAppState(AppState.SYNC_CLIENT)} onCancel={() => setAppState(AppState.HOME)} />)}
-          {appState === AppState.DATA_SYNC_SELECTION && (<HomeView onStart={startNewScan} showDataSyncModal={true} onSelectDataSyncHost={() => setAppState(AppState.DATA_SYNC_HOST)} onSelectDataSyncClient={() => setAppState(AppState.DATA_SYNC_CLIENT)} onSelectManualDataTransfer={() => setAppState(AppState.MANUAL_DATA_TRANSFER)} onCancel={() => setAppState(AppState.HOME)} />)}
-          {appState === AppState.MANUAL_DATA_TRANSFER && (<ManualDataTransfer onClose={() => setAppState(AppState.HOME)} />)}
           
           {appState === AppState.SYNC_HOST && (
               <div className="p-4 space-y-6 animate-fade-in">
@@ -513,26 +501,6 @@ export default function App() {
 
           {appState === AppState.SYNC_CLIENT && (<div className="pt-8 px-4"><SyncPairing mode="client" onConnect={handleClientConnect} onCancel={() => setAppState(AppState.MODALITY_SELECTION)} /></div>)}
 
-          {appState === AppState.DATA_SYNC_HOST && (
-              <div className="pt-8 px-4">
-                  {!syncService || !syncConnected ? (
-                      <SyncPairing mode="host" onConnect={handleHostConnect} onCancel={() => setAppState(AppState.DATA_SYNC_SELECTION)} />
-                  ) : (
-                      <DataSyncManager service={syncService} onClose={() => { syncService.destroy(); setSyncService(null); setAppState(AppState.HOME); }} />
-                  )}
-              </div>
-          )}
-
-          {appState === AppState.DATA_SYNC_CLIENT && (
-              <div className="pt-8 px-4">
-                  {!syncService || !syncConnected ? (
-                      <SyncPairing mode="client" onConnect={handleClientConnect} onCancel={() => setAppState(AppState.DATA_SYNC_SELECTION)} />
-                  ) : (
-                      <DataSyncManager service={syncService} onClose={() => { syncService.destroy(); setSyncService(null); setAppState(AppState.HOME); }} />
-                  )}
-              </div>
-          )}
-
           {appState === AppState.SCANNING && (
               <Scanner 
                 key={scanSessionId} 
@@ -551,7 +519,7 @@ export default function App() {
         </div>
       </main>
 
-      {syncService && appState !== AppState.DATA_SYNC_HOST && appState !== AppState.DATA_SYNC_CLIENT && (<SyncHandlerBridge service={syncService} onData={onSyncDataReceived} onStatus={onSyncStatusChange} />)}
+      {syncService && (<SyncHandlerBridge service={syncService} onData={onSyncDataReceived} onStatus={onSyncStatusChange} />)}
       {settings.debugMode && <DebugConsole />}
       <InstallPrompt />
       <UpdatePrompt />

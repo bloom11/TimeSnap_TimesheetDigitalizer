@@ -1,9 +1,8 @@
 
-import { SavedScan, TimeEntry, ColumnConfig, ExportProfile, TableProfile, SyncDataPayload } from "../types";
+import { SavedScan, TimeEntry, ColumnConfig, ExportProfile } from "../types";
 
 const STORAGE_KEY = 'timesnap_history';
 const PROFILES_KEY = 'timesnap_export_profiles';
-const TABLE_PROFILES_KEY = 'table_profiles';
 
 export const getHistory = (): SavedScan[] => {
   try {
@@ -105,70 +104,4 @@ export const deleteExportProfile = (id: string) => {
     const profiles = getExportProfiles();
     const updated = profiles.filter(p => p.id !== id);
     localStorage.setItem(PROFILES_KEY, JSON.stringify(updated));
-};
-
-// --- Table Profiles ---
-
-export const getTableProfiles = (): TableProfile[] => {
-    try {
-        const raw = localStorage.getItem(TABLE_PROFILES_KEY);
-        return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-        return [];
-    }
-};
-
-export const saveTableProfile = (profile: TableProfile) => {
-    const profiles = getTableProfiles();
-    const existingIndex = profiles.findIndex(p => p.id === profile.id);
-    
-    if (existingIndex >= 0) {
-        profiles[existingIndex] = profile;
-    } else {
-        profiles.push(profile);
-    }
-    
-    localStorage.setItem(TABLE_PROFILES_KEY, JSON.stringify(profiles));
-    return profile;
-};
-
-export const importSyncData = (
-    data: SyncDataPayload,
-    selectedScans: Set<string>,
-    selectedExportProfiles: Set<string>,
-    selectedTableProfiles: Set<string>
-) => {
-    // Save Scans
-    let currentHistory = getHistory();
-    const existingScanIds = new Set(currentHistory.map(s => s.id));
-    let newScansAdded = false;
-
-    data.scans.filter(s => selectedScans.has(s.id)).forEach(scan => {
-        if (!existingScanIds.has(scan.id)) {
-            currentHistory = [scan, ...currentHistory];
-            newScansAdded = true;
-        }
-    });
-
-    if (newScansAdded) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentHistory.slice(0, 25)));
-    }
-
-    // Save Export Profiles
-    const currentExportProfiles = getExportProfiles();
-    const existingExportIds = new Set(currentExportProfiles.map(p => p.id));
-    data.exportProfiles.filter(p => selectedExportProfiles.has(p.id)).forEach(profile => {
-        if (!existingExportIds.has(profile.id)) {
-            saveExportProfile(profile);
-        }
-    });
-
-    // Save Table Profiles
-    const currentTableProfiles = getTableProfiles();
-    const existingTableIds = new Set(currentTableProfiles.map(p => p.id));
-    data.tableProfiles.filter(p => selectedTableProfiles.has(p.id)).forEach(profile => {
-        if (!existingTableIds.has(profile.id)) {
-            saveTableProfile(profile);
-        }
-    });
 };
