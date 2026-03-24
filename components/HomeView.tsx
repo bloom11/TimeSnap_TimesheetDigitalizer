@@ -14,6 +14,7 @@ interface HomeViewProps {
   onSelectManualDataTransfer?: () => void;
   onCancel?: () => void;
   onDataSync?: () => void;
+  onDashboard?: () => void;
 }
 
 const HomeView: React.FC<HomeViewProps> = ({ 
@@ -27,7 +28,8 @@ const HomeView: React.FC<HomeViewProps> = ({
     onSelectDataSyncClient,
     onSelectManualDataTransfer,
     onCancel,
-    onDataSync
+    onDataSync,
+    onDashboard
 }) => {
   const [remoteSelection, setRemoteSelection] = useState(false);
 
@@ -49,13 +51,15 @@ const HomeView: React.FC<HomeViewProps> = ({
             Start Digitizing
         </button>
 
-        <button 
-            onClick={onDataSync}
-            className="w-full max-w-xs mt-4 bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold py-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center text-lg gap-2"
-        >
-            <Zap className="w-6 h-6" />
-            Share / Sync Data
-        </button>
+        <div className="w-full max-w-xs flex gap-2 mt-4">
+            <button 
+                onClick={onDataSync}
+                className="w-full bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 font-bold py-3 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center text-sm gap-2"
+            >
+                <Zap className="w-5 h-5" />
+                Share / Sync
+            </button>
+        </div>
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-3xl">
             <FeatureCard 

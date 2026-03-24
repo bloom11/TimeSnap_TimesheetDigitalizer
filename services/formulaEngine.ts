@@ -1,8 +1,43 @@
 // services/formulaEngine.ts
-import { TimeEntry, ColumnConfig } from "../types";
+import { TimeEntry, ColumnConfig, ConditionalRule } from "../types";
 
 export type FormulaResult = string;
 type OutputFormat = "NUMBER" | "STRING" | "TIME";
+
+function checkConditionalRules(row: TimeEntry, rules: ConditionalRule[], allConfigs: ColumnConfig[]): boolean {
+  if (!rules || rules.length === 0) return false; // If no rules, we don't apply the conditional value
+
+  for (const rule of rules) {
+    const val = (row[rule.columnKey] as string) || "";
+    const sep = getColumnSeparator(rule.columnKey, allConfigs, ":");
+    const num = parseCellValue(val, sep);
+
+    switch (rule.operator) {
+      case "is_empty":
+        if (val.trim()) return false;
+        break;
+      case "not_empty":
+        if (!val.trim()) return false;
+        break;
+      case "not_zero":
+        if (!Number.isFinite(num) || num === 0) return false;
+        break;
+      case "equals_zero":
+        if (!Number.isFinite(num) || num !== 0) return false;
+        break;
+      case "greater_than_zero":
+        if (!Number.isFinite(num) || num <= 0) return false;
+        break;
+      case "less_than_zero":
+        if (!Number.isFinite(num) || num >= 0) return false;
+        break;
+      case "equals":
+        if (val.trim() !== (rule.value || "").trim()) return false;
+        break;
+    }
+  }
+  return true;
+}
 
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -32,7 +67,7 @@ function parseTime(t: string, sep: string): number {
 }
 
 /** Minutes => "H{sep}MM" (keeps sign) */
-function formatTime(mins: number, sep: string, format?: '12h' | '24h'): string {
+export function formatTime(mins: number, sep: string, format?: string): string {
   if (!Number.isFinite(mins)) return "";
   let h = Math.floor(Math.abs(mins) / 60);
   const m = Math.floor(Math.abs(mins) % 60);
@@ -43,6 +78,17 @@ function formatTime(mins: number, sep: string, format?: '12h' | '24h'): string {
     let h12 = h % 12;
     if (h12 === 0) h12 = 12;
     return `${sign}${h12}${sep}${m.toString().padStart(2, "0")} ${period}`;
+  }
+
+  if (format && format !== '24h') {
+    let res = format.toUpperCase();
+    res = res.replace(/HH/g, h.toString().padStart(2, "0"));
+    res = res.replace(/H/g, h.toString());
+    res = res.replace(/MM/g, m.toString().padStart(2, "0"));
+    res = res.replace(/M/g, m.toString());
+    res = res.replace(/SS/g, "00");
+    res = res.replace(/S/g, "0");
+    return sign + res;
   }
 
   return `${sign}${h}${sep}${m.toString().padStart(2, "0")}`;
@@ -76,7 +122,7 @@ function looksLikeTimeToken(raw: string, timeSep: string): { isTime: boolean; se
  * - plain numbers like "7.5" => number
  * Empty/invalid => NaN
  */
-function parseCellValue(raw: string, timeSep: string): number {
+export function parseCellValue(raw: string, timeSep: string): number {
   const t = String(raw ?? "").trim();
   if (!t) return NaN;
 
@@ -123,6 +169,62 @@ function normalizeWrapperTimeLiterals(expr: string, timeSep: string): string {
 }
 
 /**
+ * Evaluates an aggregation token like SUM([total_hours]) over a set of entries.
+ */
+function evaluateAggregation(op: string, colKey: string, entries: TimeEntry[], allConfigs: ColumnConfig[]): number {
+  const operation = op.toUpperCase();
+  const timeSep = getColumnSeparator(colKey, allConfigs, ":");
+
+  let values: number[] = [];
+
+  for (const entry of entries) {
+    const rawVal = entry[colKey];
+    if (rawVal !== undefined && rawVal !== null && rawVal !== "") {
+      const num = parseCellValue(String(rawVal), timeSep);
+      if (!isNaN(num)) {
+        values.push(num);
+      }
+    }
+  }
+
+  if (values.length === 0) return 0;
+
+  switch (operation) {
+    case 'SUM':
+      return values.reduce((a, b) => a + b, 0);
+    case 'AVG':
+      return values.reduce((a, b) => a + b, 0) / values.length;
+    case 'MIN':
+      return Math.min(...values);
+    case 'MAX':
+      return Math.max(...values);
+    case 'COUNT':
+      return values.length;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Replaces aggregation tokens in a formula string with their evaluated numbers.
+ */
+function processAggregations(formula: string, entries: TimeEntry[], allConfigs: ColumnConfig[]): string {
+  if (!formula) return "";
+  
+  let expr = formula;
+
+  // Replace all tokens like SUM([col]), AVG([col]), etc.
+  // This regex specifically looks for the pattern Op([ColName])
+  const regex = /(SUM|AVG|MIN|MAX|COUNT)\s*\(\s*\[([^\]]+)\]\s*\)/gi;
+  expr = expr.replace(regex, (match, op, colKey) => {
+    const val = evaluateAggregation(op, colKey, entries, allConfigs);
+    return isNaN(val) ? "0" : val.toString();
+  });
+
+  return expr;
+}
+
+/**
  * Complex formula rules (human/simple):
  * - Default output is NUMBER.
  * - TIME(x) forces TIME formatting (minutes -> "H{sep}MM").
@@ -137,7 +239,8 @@ export function calculateValue(
   index: number,
   prevRow: TimeEntry | null,
   constants: Record<string, string | number>,
-  allConfigs: ColumnConfig[]
+  allConfigs: ColumnConfig[],
+  allRows: TimeEntry[]
 ): FormulaResult {
   const {
     formula,
@@ -148,7 +251,23 @@ export function calculateValue(
     timeSeparator = ":",
   } = config;
 
-  if (formula === "none") return (row[config.key] as string) || "";
+  if (formula === "none") {
+    // Check conditional rules for manual columns too
+    if (config.conditionalRules && config.conditionalRules.length > 0 && config.conditionalValue !== undefined) {
+      if (checkConditionalRules(row, config.conditionalRules, allConfigs)) {
+        return config.conditionalValue;
+      }
+    }
+    return (row[config.key] as string) || "";
+  }
+
+  // Apply conditional rules if present
+  if (config.conditionalRules && config.conditionalRules.length > 0 && config.conditionalValue !== undefined) {
+    if (checkConditionalRules(row, config.conditionalRules, allConfigs)) {
+      return config.conditionalValue;
+    }
+  }
+
   if (formula === "static") return staticValue;
 
   if (formula === "increment") {
@@ -182,7 +301,10 @@ export function calculateValue(
   if (formula === "complex" && complexFormula) {
     let expr = complexFormula;
 
-    // 0) Allow TIME(8:00)/HOURS(8:00)/MINS(8:00) without quotes
+    // 0) Process Aggregations (SUM, AVG, COUNT, etc.)
+    expr = processAggregations(expr, allRows, allConfigs);
+
+    // 0.5) Allow TIME(8:00)/HOURS(8:00)/MINS(8:00) without quotes
     expr = normalizeWrapperTimeLiterals(expr, timeSeparator);
 
     // 1) Replace [PREV_CELL] (use this column separator)
@@ -240,7 +362,7 @@ export function calculateValue(
       }
 
       // 6) Evaluate with explicit helpers
-      let outputFormat: OutputFormat = "NUMBER";
+      const context = { outputFormat: "NUMBER" as OutputFormat };
 
       const fn = new Function(
         "IF",
@@ -258,6 +380,7 @@ export function calculateValue(
         "TIME",
         "HOURS",
         "MINS",
+        "FORMAT_TIME",
         `return (${sanitized});`
       );
 
@@ -273,24 +396,42 @@ export function calculateValue(
         (...args: any[]) => args.some(Boolean), // OR
         (a: any) => !a, // NOT
         (x: any) => {
-          outputFormat = "NUMBER";
+          context.outputFormat = "NUMBER";
           return Number(x);
         }, // NUM
         (x: any) => {
-          outputFormat = "STRING";
+          context.outputFormat = "STRING";
           return String(x);
         }, // STRING
-        (x: any) => {
-          outputFormat = "TIME";
-          // TIME("8:00") or TIME("8.00")
+        (x: any, format?: string) => {
+          let mins = NaN;
           if (typeof x === "string") {
             const t = x.trim();
             const det = looksLikeTimeToken(t, timeSeparator);
-            if (det.isTime) return parseTime(t, det.sep);
-            const n = Number(t);
-            return Number.isFinite(n) ? n : NaN; // assume minutes if numeric
+            if (det.isTime) mins = parseTime(t, det.sep);
+            else mins = Number(t);
+          } else {
+            mins = Number(x);
           }
-          return Number(x); // assume minutes
+          
+          if (!Number.isFinite(mins)) return NaN;
+
+          if (format) {
+            const fmt = format.toUpperCase();
+            if (fmt === "HOURS") {
+              context.outputFormat = "NUMBER";
+              return mins / 60;
+            }
+            if (fmt === "MINUTES" || fmt === "MINS") {
+              context.outputFormat = "NUMBER";
+              return mins;
+            }
+            context.outputFormat = "STRING";
+            return formatTime(mins, timeSeparator, format);
+          }
+          
+          context.outputFormat = "TIME";
+          return mins;
         }, // TIME
         (x: any) => {
           // HOURS(8) = 8 hours, HOURS("8:30") = 8.5 hours, HOURS(510) = 8.5 if minutes
@@ -315,7 +456,8 @@ export function calculateValue(
           }
           const n = Number(x);
           return Number.isFinite(n) ? n : NaN;
-        } // MINS
+        }, // MINS
+        formatTime
       );
 
       // 7) String / boolean outputs
@@ -330,7 +472,7 @@ export function calculateValue(
       if (config.keepEmptyIfNegative && n < 0) return "";
 
       // 10) Format
-      if (outputFormat === "TIME") return formatTime(n, timeSeparator, config.timeFormat);
+      if (context.outputFormat === "TIME") return formatTime(n, timeSeparator, config.timeFormat);
       return String(Math.round(n * 100) / 100);
     } catch {
       return "ERR";
@@ -377,7 +519,7 @@ export function applyFormulas(
     // Use newRow while filling, so later formulas can read earlier computed columns in same row if needed
     for (const cfg of configs) {
       if (cfg.formula !== "none") {
-        newRow[cfg.key] = calculateValue(newRow, cfg, i, prevRow, constants, configs);
+        newRow[cfg.key] = calculateValue(newRow, cfg, i, prevRow, constants, configs, data);
       }
     }
 

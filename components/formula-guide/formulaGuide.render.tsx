@@ -1,10 +1,35 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Copy, Check } from 'lucide-react';
 import type {
   FormulaGuideContentValue,
   FormulaGuideExample,
   FormulaGuideNode,
 } from './formulaGuide.types';
 import { normalizeLabel } from './formulaGuide.search';
+
+export function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-slate-400 hover:text-blue-500"
+      title="Copy formula"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
 
 export function ContentValueBlock({ value }: { value: FormulaGuideContentValue }) {
   if (value == null) return null;
@@ -73,7 +98,10 @@ export function ExampleList({ title, examples }: { title?: string; examples: For
           key={example.id}
           className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-3"
         >
-          <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">{example.label}</div>
+          <div className="flex justify-between items-start mb-2">
+            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{example.label}</div>
+            <CopyButton text={example.formula} />
+          </div>
           <code className="block overflow-x-auto rounded bg-white dark:bg-slate-900 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
             {example.formula}
           </code>
@@ -183,7 +211,7 @@ export function SectionBlock({ node }: { node: FormulaGuideNode }) {
         <div className="space-y-4">
           <div className="text-base font-bold text-slate-900 dark:text-white">Functions</div>
           {node.items!.map((item) => (
-            <div key={item.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+            <div key={item.id} id={item.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
               <div>
                 <div className="text-base font-bold text-slate-900 dark:text-white">{item.name || item.title}</div>
                 {item.signature && (
@@ -206,7 +234,7 @@ export function SectionBlock({ node }: { node: FormulaGuideNode }) {
         <div className="space-y-4">
           <div className="text-base font-bold text-slate-900 dark:text-white">Examples by topic</div>
           {node.groups!.map((group) => (
-            <div key={group.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
+            <div key={group.id} id={group.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
               <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">{group.title}</div>
               <ExampleList examples={group.examples || []} />
             </div>
@@ -219,7 +247,7 @@ export function SectionBlock({ node }: { node: FormulaGuideNode }) {
           {[...(node.subsections || [])]
             .sort((a, b) => (a.order || 0) - (b.order || 0))
             .map((child) => (
-              <div key={child.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
+              <div key={child.id} id={child.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="mb-3 text-base font-bold text-slate-900 dark:text-white">{child.title}</div>
                 <SectionBlock node={child} />
               </div>

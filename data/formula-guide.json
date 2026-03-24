@@ -36,6 +36,9 @@
           "notes": [
             "The default output format is NUMBER.",
             "Use TIME(expression) to force the final result to be formatted as a time string (e.g., 'HH:MM').",
+            "Use TIME(expression, \"HOURS\") to output decimal hours (e.g., '8.50').",
+            "Use TIME(expression, \"MINUTES\") to output total minutes (e.g., '510').",
+            "Use TIME(expression, \"HH:MM\") or \"12h\" for custom formatting.",
             "Use NUM(expression) to force the result to be a number.",
             "Use STRING(expression) to force the result to be a string.",
             "The 'Keep Empty if Negative' column setting will blank the cell if the final numeric result is less than 0 (applies to NUMBER and TIME outputs)."
@@ -50,6 +53,18 @@
             "TIME(8:30) represents the time 8:30 (evaluates to 510 minutes).",
             "HOURS(8:30) represents 8.5 hours.",
             "MINS(30) represents 30 minutes."
+          ]
+        },
+        {
+          "id": "rule-widget-formulas",
+          "title": "Widget Engine Formulas",
+          "summary": "Special rules for formulas used in dashboard widgets.",
+          "notes": [
+            "Widget formulas calculate a single value across all rows in the current view.",
+            "You MUST use aggregation functions like SUM([col]), AVG([col]), MIN([col]), MAX([col]), or COUNT([col]) to reference column data.",
+            "You cannot reference a column directly without an aggregation function (e.g., [total_hours] is invalid, use SUM([total_hours])).",
+            "Widget formulas support the same math operators, logical operators, and functions (like TIME, IF, ABS) as column formulas.",
+            "The TIME(value, \"format\") function is especially useful in widgets to format the final aggregated result (e.g., TIME(SUM([hours]), \"HOURS\"))."
           ]
         }
       ]
@@ -82,8 +97,8 @@
         {
           "id": "fn-time",
           "name": "TIME",
-          "signature": "TIME(value)",
-          "summary": "Forces the output to be formatted as time (HH:MM). Also used to write time literals like TIME(8:30).",
+          "signature": "TIME(value, [format])",
+          "summary": "Forces the output to be formatted as time. Optional format can be 'HOURS', 'MINUTES', 'HH:MM', '12h', '24h'. Also used to write time literals like TIME(8:30).",
           "returns": ["Time String", "Minutes (Number)"]
         },
         {
@@ -209,6 +224,20 @@
               "formula": "NUM(([exit] - [entrance]) / 60)",
               "resultType": "Number",
               "note": "Converts total minutes into decimal hours (e.g., 8:30 becomes 8.5)."
+            },
+            {
+              "id": "ex-time-format-hours",
+              "label": "Format as Decimal Hours String",
+              "formula": "TIME([exit] - [entrance], \"HOURS\")",
+              "resultType": "Time String",
+              "note": "Calculates the time difference and formats it strictly as decimal hours (e.g., '8.50')."
+            },
+            {
+              "id": "ex-time-format-custom",
+              "label": "Custom Time Format",
+              "formula": "TIME([exit] - [entrance], \"H:MM:SS\")",
+              "resultType": "Time String",
+              "note": "Calculates the time difference and formats it using a custom string (e.g., '8:30:00')."
             }
           ]
         },

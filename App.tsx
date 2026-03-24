@@ -1,6 +1,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, History, Settings, RotateCcw, X, AlertTriangle, Monitor, Smartphone, Loader2, Play, Trash2, WifiOff, CheckCircle2, Layers, Cpu, MousePointer2 } from "lucide-react";
+import { ArrowLeft, History, Settings, RotateCcw, X, AlertTriangle, Monitor, Smartphone, Loader2, Play, Trash2, WifiOff, CheckCircle2, Layers, Cpu, MousePointer2, Scan, LayoutDashboard } from "lucide-react";
 
 import { AppState, ProcessingStatus, TimeEntry, SavedScan, ColumnConfig, FormulaType } from "./types";
 import { getHistory, saveScan, deleteScan, updateScan, updateScanName } from "./services/storageService";
@@ -18,6 +18,8 @@ import HistoryList from "./components/HistoryList";
 import SyncPairing from "./components/SyncPairing";
 import DataSyncManager from "./components/DataSyncManager";
 import ManualDataTransfer from "./components/ManualDataTransfer";
+import DashboardView from "./components/DashboardView";
+import { getDashboardConfig } from "./services/storageService";
 import DebugConsole from "./components/DebugConsole";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { UpdatePrompt } from "./components/UpdatePrompt";
@@ -34,6 +36,7 @@ type ConfirmState = {
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>(AppState.HOME);
+  const [showDashboard, setShowDashboard] = useState<boolean>(() => getDashboardConfig().isDefaultHome);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>([]);
@@ -139,6 +142,7 @@ export default function App() {
           );
           return;
         }
+        setOverlay(null);
         setAppState(AppState.MODALITY_SELECTION);
     });
   }, [isBusy, entries.length, appState, requestConfirm, doStartNewScan, overlay]);
@@ -159,6 +163,11 @@ export default function App() {
         if (appState === AppState.EXPORT) { setAppState(AppState.REVIEW); return; }
         if (appState === AppState.MODALITY_SELECTION || appState === AppState.DATA_SYNC_SELECTION || appState === AppState.MANUAL_DATA_TRANSFER) { setAppState(AppState.HOME); return; }
         if (appState === AppState.SYNC_HOST || appState === AppState.SYNC_CLIENT) {
+            if (isAppending) {
+                setIsAppending(false);
+                setAppState(AppState.REVIEW);
+                return;
+            }
             setAppState(AppState.MODALITY_SELECTION);
             syncService?.destroy();
             setSyncService(null);
@@ -180,12 +189,17 @@ export default function App() {
           return;
         }
         if (appState === AppState.SCANNING) {
+          if (isAppending) {
+              setIsAppending(false);
+              setAppState(AppState.REVIEW);
+              return;
+          }
           if (syncService) { setAppState(AppState.SYNC_CLIENT); return; }
           setAppState(AppState.HOME);
           return;
         }
     });
-  }, [appState, overlay, isBusy, entries.length, requestConfirm, doGoHomeAndClear, syncService]);
+  }, [appState, overlay, isBusy, entries.length, requestConfirm, doGoHomeAndClear, syncService, isAppending]);
 
   const handleScanSuccess = useCallback(
     (newEntries: TimeEntry[]) => {
@@ -393,7 +407,7 @@ export default function App() {
   const title = useMemo(() => {
     if (overlay === "settings") return "Preferences";
     if (overlay === "history") return "History";
-    if (appState === AppState.HOME) return "TimeSnap";
+    if (appState === AppState.HOME) return showDashboard ? "Dashboard" : "TimeSnap";
     if (appState === AppState.MODALITY_SELECTION) return "Choose Workflow";
     if (appState === AppState.DATA_SYNC_SELECTION) return "Data Sync";
     if (appState === AppState.MANUAL_DATA_TRANSFER) return "Manual Transfer";
@@ -403,28 +417,50 @@ export default function App() {
     if (appState === AppState.SYNC_HOST || appState === AppState.DATA_SYNC_HOST) return "Desktop Station";
     if (appState === AppState.SYNC_CLIENT || appState === AppState.DATA_SYNC_CLIENT) return "Mobile Scanner";
     return "TimeSnap";
-  }, [appState, overlay, syncService]);
+  }, [appState, overlay, syncService, showDashboard]);
 
   const settings = getSettings();
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-10 transition-colors duration-200">
-      <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm h-16 flex items-center px-4">
+      <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm h-16 flex items-center px-4 relative">
         <div className="w-full max-w-[1600px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {(appState !== AppState.HOME || overlay) && (
-              <button onClick={goBack} disabled={isBusy} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-50"><ArrowLeft className="w-5 h-5" /></button>
+            {(appState !== AppState.HOME || overlay || (!showDashboard && getDashboardConfig().isDefaultHome)) && (
+              <button onClick={() => {
+                if (appState === AppState.HOME && !showDashboard && getDashboardConfig().isDefaultHome && !overlay) {
+                  setShowDashboard(true);
+                } else {
+                  goBack();
+                }
+              }} disabled={isBusy} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 disabled:opacity-50"><ArrowLeft className="w-5 h-5" /></button>
             )}
             <span className="font-semibold text-slate-800 dark:text-white text-lg">{title}</span>
           </div>
           <div className="flex items-center gap-2">
-            {!syncService && appState === AppState.HOME && (
+            <div id="header-actions-portal" className="flex items-center gap-2"></div>
+            {!syncService && appState === AppState.HOME && !showDashboard && (
                 <button onClick={startNewScan} disabled={isBusy} className="flex items-center gap-2 bg-slate-800 dark:bg-blue-600 hover:bg-slate-700 dark:hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm disabled:opacity-50"><RotateCcw className="w-4 h-4" /><span className="hidden sm:inline">New Session</span></button>
             )}
             <button onClick={() => safeNavigate(() => setOverlay("history"))} className={`p-2 rounded-lg transition-colors ${overlay === "history" ? "bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"}`}><History className="w-5 h-5" /></button>
             <button onClick={() => safeNavigate(() => setOverlay("settings"))} className={`p-2 rounded-lg transition-colors ${overlay === "settings" ? "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"}`}><Settings className="w-5 h-5" /></button>
           </div>
         </div>
+        
+        {appState === AppState.HOME && !overlay && (
+          <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 z-50">
+            <button 
+              onClick={() => setShowDashboard(!showDashboard)}
+              className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md rounded-full px-4 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all hover:scale-105 active:scale-95"
+            >
+              {showDashboard ? (
+                <><Scan className="w-4 h-4 text-blue-600" /> Switch to Scanner</>
+              ) : (
+                <><LayoutDashboard className="w-4 h-4 text-blue-600" /> Switch to Dashboard</>
+              )}
+            </button>
+          </div>
+        )}
       </header>
 
       <main className="w-full max-w-[1600px] mx-auto relative">
@@ -444,7 +480,20 @@ export default function App() {
         )}
 
         <div className={overlay ? "hidden" : "block"}>
-          {appState === AppState.HOME && (<HomeView onStart={startNewScan} onDataSync={() => setAppState(AppState.DATA_SYNC_SELECTION)} />)}
+          {appState === AppState.HOME && showDashboard && (
+            <DashboardView 
+              onSwitchToScanner={() => setShowDashboard(false)} 
+              constants={constants}
+              columnConfigs={columnConfigs}
+            />
+          )}
+          {appState === AppState.HOME && !showDashboard && (
+            <HomeView 
+              onStart={startNewScan} 
+              onDataSync={() => setAppState(AppState.DATA_SYNC_SELECTION)} 
+              onDashboard={() => setShowDashboard(true)} 
+            />
+          )}
           {appState === AppState.MODALITY_SELECTION && (<HomeView onStart={startNewScan} showModalityModal={true} onSelectLocal={doStartNewScan} onSelectHost={() => setAppState(AppState.SYNC_HOST)} onSelectClient={() => setAppState(AppState.SYNC_CLIENT)} onCancel={() => setAppState(AppState.HOME)} />)}
           {appState === AppState.DATA_SYNC_SELECTION && (<HomeView onStart={startNewScan} showDataSyncModal={true} onSelectDataSyncHost={() => setAppState(AppState.DATA_SYNC_HOST)} onSelectDataSyncClient={() => setAppState(AppState.DATA_SYNC_CLIENT)} onSelectManualDataTransfer={() => setAppState(AppState.MANUAL_DATA_TRANSFER)} onCancel={() => setAppState(AppState.HOME)} />)}
           {appState === AppState.MANUAL_DATA_TRANSFER && (<ManualDataTransfer onClose={() => setAppState(AppState.HOME)} />)}

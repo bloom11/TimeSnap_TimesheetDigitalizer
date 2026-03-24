@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Download, FileSpreadsheet, Check, ChevronRight, Wand2, Copy, CheckCircle2, ArrowLeft, Table, Loader2, ScanLine, Save, Home, Trash2, X, AlertCircle } from 'lucide-react';
-import { TimeEntry, ExcelColumnMapping, ExportProfile } from '../types';
+import { TimeEntry, ExcelColumnMapping, ExportProfile, ColumnConfig } from '../types';
 import { readExcelFile, generateStandardExcel, mergeAndSave, getExportableColumns } from '../services/excelService';
 import { suggestColumnMapping } from '../services/aiService';
 import { getExportProfiles, saveExportProfile, deleteExportProfile } from '../services/storageService';

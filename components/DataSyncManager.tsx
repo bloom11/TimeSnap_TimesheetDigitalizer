@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { SyncService } from '../services/syncService';
-import { getHistory, getExportProfiles, saveScan, saveExportProfile, getTableProfiles, saveTableProfile, importSyncData } from '../services/storageService';
+import { getHistory, getExportProfiles, saveScan, saveExportProfile, getTableProfiles, saveTableProfile, importSyncData, getDashboardConfig } from '../services/storageService';
 import { exportSettingsByCategory, applyImportedSettings } from '../services/settingsService';
-import { SavedScan, ExportProfile, TableProfile, SyncDataPayload } from '../types';
-import { Check, Download, Upload, Loader2, AlertCircle, Database, FileSpreadsheet, LayoutTemplate, ChevronDown, Settings } from 'lucide-react';
+import { SavedScan, ExportProfile, TableProfile, SyncDataPayload, DashboardConfig } from '../types';
+import { Check, Download, Upload, Loader2, AlertCircle, Database, FileSpreadsheet, LayoutTemplate, ChevronDown, Settings, LayoutDashboard } from 'lucide-react';
 import { ExpandableList } from './ExpandableList';
 
 const SETTINGS_CATEGORIES = [
@@ -27,18 +27,21 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
     const [localScans, setLocalScans] = useState<SavedScan[]>([]);
     const [localExportProfiles, setLocalExportProfiles] = useState<ExportProfile[]>([]);
     const [localTableProfiles, setLocalTableProfiles] = useState<TableProfile[]>([]);
+    const [localDashboardConfig, setLocalDashboardConfig] = useState<DashboardConfig | null>(null);
 
     // Selection state for sending
     const [selectedLocalScans, setSelectedLocalScans] = useState<Set<string>>(new Set());
     const [selectedLocalExportProfiles, setSelectedLocalExportProfiles] = useState<Set<string>>(new Set());
     const [selectedLocalTableProfiles, setSelectedLocalTableProfiles] = useState<Set<string>>(new Set());
     const [selectedLocalSettings, setSelectedLocalSettings] = useState<Set<string>>(new Set());
+    const [selectedLocalDashboard, setSelectedLocalDashboard] = useState<boolean>(true);
 
     // Selection state for receiving
     const [selectedReceivedScans, setSelectedReceivedScans] = useState<Set<string>>(new Set());
     const [selectedReceivedExportProfiles, setSelectedReceivedExportProfiles] = useState<Set<string>>(new Set());
     const [selectedReceivedTableProfiles, setSelectedReceivedTableProfiles] = useState<Set<string>>(new Set());
     const [selectedReceivedSettings, setSelectedReceivedSettings] = useState<Set<string>>(new Set());
+    const [selectedReceivedDashboard, setSelectedReceivedDashboard] = useState<boolean>(true);
 
     // Expand state
     const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -47,15 +50,18 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
         const scans = getHistory();
         const exportProfiles = getExportProfiles();
         const tableProfiles = getTableProfiles();
+        const dashboardConfig = getDashboardConfig();
         
         setLocalScans(scans);
         setLocalExportProfiles(exportProfiles);
         setLocalTableProfiles(tableProfiles);
+        setLocalDashboardConfig(dashboardConfig);
 
         setSelectedLocalScans(new Set(scans.map(s => s.id)));
         setSelectedLocalExportProfiles(new Set(exportProfiles.map(p => p.id)));
         setSelectedLocalTableProfiles(new Set(tableProfiles.map(p => p.id)));
         setSelectedLocalSettings(new Set(SETTINGS_CATEGORIES.map(c => c.id)));
+        setSelectedLocalDashboard(!!dashboardConfig);
 
         const handleData = (data: any) => {
             if (data.type === 'SYNC_DATA_PAYLOAD') {
@@ -63,6 +69,7 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
                 setSelectedReceivedScans(new Set(data.payload.scans.map((s: any) => s.id)));
                 setSelectedReceivedExportProfiles(new Set(data.payload.exportProfiles.map((p: any) => p.id)));
                 setSelectedReceivedTableProfiles(new Set(data.payload.tableProfiles.map((p: any) => p.id)));
+                setSelectedReceivedDashboard(!!data.payload.dashboardConfig);
                 
                 if (data.payload.settings) {
                     setSelectedReceivedSettings(new Set(Object.keys(data.payload.settings)));
@@ -103,6 +110,10 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
             payload.settings = exportSettingsByCategory(Array.from(selectedLocalSettings));
         }
 
+        if (selectedLocalDashboard && localDashboardConfig) {
+            payload.dashboardConfig = localDashboardConfig;
+        }
+
         service.send({ type: 'SYNC_DATA_PAYLOAD', payload });
     };
 
@@ -117,7 +128,8 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
                 receivedData,
                 selectedReceivedScans,
                 selectedReceivedExportProfiles,
-                selectedReceivedTableProfiles
+                selectedReceivedTableProfiles,
+                selectedReceivedDashboard
             );
 
             if (receivedData.settings && selectedReceivedSettings.size > 0) {
@@ -128,15 +140,18 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
             const newScans = getHistory();
             const newExportProfiles = getExportProfiles();
             const newTableProfiles = getTableProfiles();
+            const newDashboardConfig = getDashboardConfig();
             
             setLocalScans(newScans);
             setLocalExportProfiles(newExportProfiles);
             setLocalTableProfiles(newTableProfiles);
+            setLocalDashboardConfig(newDashboardConfig);
             
             // Update local selection to include newly saved items
             setSelectedLocalScans(new Set(newScans.map(s => s.id)));
             setSelectedLocalExportProfiles(new Set(newExportProfiles.map(p => p.id)));
             setSelectedLocalTableProfiles(new Set(newTableProfiles.map(p => p.id)));
+            setSelectedLocalDashboard(!!newDashboardConfig);
             
             setReceivedData(null);
             setStatus("Data saved successfully!");
@@ -145,7 +160,7 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
             setTimeout(() => {
                 setIsSyncing(false);
                 setStatus("Connected. Ready to sync.");
-                if (selectedReceivedSettings.size > 0) {
+                if (selectedReceivedSettings.size > 0 || selectedReceivedDashboard) {
                     window.location.reload();
                 }
             }, 2000);
@@ -170,8 +185,8 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
         setter(newSet);
     };
 
-    const totalLocalSelected = selectedLocalScans.size + selectedLocalExportProfiles.size + selectedLocalTableProfiles.size + selectedLocalSettings.size;
-    const totalReceivedSelected = selectedReceivedScans.size + selectedReceivedExportProfiles.size + selectedReceivedTableProfiles.size + selectedReceivedSettings.size;
+    const totalLocalSelected = selectedLocalScans.size + selectedLocalExportProfiles.size + selectedLocalTableProfiles.size + selectedLocalSettings.size + (selectedLocalDashboard ? 1 : 0);
+    const totalReceivedSelected = selectedReceivedScans.size + selectedReceivedExportProfiles.size + selectedReceivedTableProfiles.size + selectedReceivedSettings.size + (selectedReceivedDashboard ? 1 : 0);
 
     return (
         <div className="p-4 max-w-4xl mx-auto animate-fade-in">
@@ -247,6 +262,33 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
                                 isExpanded={expandedSection === 'localSettings'} 
                                 onToggleExpand={() => setExpandedSection(expandedSection === 'localSettings' ? null : 'localSettings')} 
                             />
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                                <div 
+                                    className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    onClick={() => setSelectedLocalDashboard(!selectedLocalDashboard)}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
+                                            <LayoutDashboard className="w-5 h-5 text-teal-500" />
+                                        </div>
+                                        <div className="text-left">
+                                            <h3 className="font-semibold text-slate-900 dark:text-white">Dashboard Widgets & Layout</h3>
+                                            <p className="text-sm text-slate-500">Include your custom dashboard configuration</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={selectedLocalDashboard}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedLocalDashboard(e.target.checked);
+                                            }}
+                                            className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <button 
@@ -319,6 +361,35 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
                                             isExpanded={expandedSection === 'receivedSettings'} 
                                             onToggleExpand={() => setExpandedSection(expandedSection === 'receivedSettings' ? null : 'receivedSettings')} 
                                         />
+                                    )}
+                                    {receivedData.dashboardConfig && (
+                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                                            <div 
+                                                className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                                onClick={() => setSelectedReceivedDashboard(!selectedReceivedDashboard)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
+                                                        <LayoutDashboard className="w-5 h-5 text-teal-500" />
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <h3 className="font-semibold text-slate-900 dark:text-white">Dashboard Widgets & Layout</h3>
+                                                        <p className="text-sm text-slate-500">Import custom dashboard configuration</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedReceivedDashboard}
+                                                        onChange={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedReceivedDashboard(e.target.checked);
+                                                        }}
+                                                        className="w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-green-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
 

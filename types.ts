@@ -23,6 +23,8 @@ export interface ColumnConfig {
     timeFormat?: '12h' | '24h';
     keepEmptyIfNegative?: boolean;
     defaultTextColor?: string;
+    conditionalRules?: ConditionalRule[];
+    conditionalValue?: string;
 }
 
 export interface SavedScan {
@@ -146,6 +148,7 @@ export interface SyncDataPayload {
   tableProfiles: TableProfile[];
   exportProfiles: ExportProfile[];
   settings?: SyncSettingsPayload;
+  dashboardConfig?: DashboardConfig;
 }
 
 export interface PeerMessage {
@@ -165,4 +168,45 @@ export interface SyncState {
   connectedPeerId: string | null;
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
   lastMessage?: string;
+}
+
+// --- Dashboard & Widget Types ---
+
+export type WidgetStyle = 'metric' | 'progress_linear' | 'progress_circle' | 'hourglass' | 'clock';
+export type TimeFilter = 'all' | 'this_week' | 'last_week' | 'this_month' | 'custom';
+
+export interface ConditionalRule {
+  columnKey: string;
+  operator: 'is_empty' | 'not_empty' | 'not_zero' | 'equals_zero' | 'greater_than_zero' | 'less_than_zero' | 'equals';
+  value?: string;
+}
+
+export interface WidgetConfig {
+  id: string;
+  title: string;
+  style: WidgetStyle;
+  
+  // Data Source
+  scanSourceId: string | 'latest'; 
+  dateColumnKey: string; // e.g., "date"
+  timeFilter: TimeFilter;
+  rowFilter?: ConditionalRule;
+  
+  // Math
+  formula: string; // e.g., "SUM([total_hours])"
+  targetFormula?: string; // e.g., "40:00" (used for progress/hourglass)
+  
+  // Aesthetics
+  backgroundColor: string;
+  textColor: string;
+  accentColor: string; // Used for the "fill" of the hourglass/circle
+  fontFamily: string;
+  borderRadius: string;
+  borderWidth: string;
+  borderColor: string;
+}
+
+export interface DashboardConfig {
+  widgets: WidgetConfig[];
+  isDefaultHome: boolean; // Toggle between standard Home and Custom Dashboard
 }

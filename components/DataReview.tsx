@@ -1,6 +1,7 @@
 // components/DataReview.tsx
 import React, { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ArrowRight, Menu, X, Grip } from "lucide-react";
 
 import { TimeEntry, ColumnConfig, FormulaType } from "../types";
 import FormulaGuideModal from "./formula-guide/FormulaGuideModal";
@@ -11,6 +12,8 @@ import ColumnConfigModal from "./ColumnConfigModal";
 import DataReviewToolbar from "./DataReviewToolbar";
 import DataReviewTable from "./DataReviewTable";
 import { useDataReviewLogic } from "./useDataReviewLogic";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import DraggableMenu from "./DraggableMenu";
 
 interface DataReviewProps {
   data: TimeEntry[];
@@ -121,6 +124,12 @@ const DataReview: React.FC<DataReviewProps> = ({
     modalConfig,
   });
 
+  const isLandscape = useMediaQuery("(orientation: landscape) and (max-height: 600px)");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isDraggableMode, setIsDraggableMode] = useState(false);
+
+  const headerPortalTarget = document.getElementById("header-actions-portal");
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-slate-50 dark:bg-slate-950">
       {/* Formula Guide Modal */}
@@ -148,16 +157,110 @@ const DataReview: React.FC<DataReviewProps> = ({
       />
 
       {/* Top bar */}
-      <DataReviewToolbar
-        sortOrder={sortOrder}
-        onSort={handleSort}
-        onScanMore={onScanMore}
-        onOpenProfiles={() => setShowProfileModal(true)}
-        onOpenConstants={() => setShowConstantsModal(true)}
-        onAddColumn={openAddColumn}
-        onReorderColumns={() => setShowReorderModal(true)}
-        onAddRow={handleAddRow}
-      />
+      {!isLandscape && (
+        <DataReviewToolbar
+          sortOrder={sortOrder}
+          onSort={handleSort}
+          onScanMore={onScanMore}
+          onOpenProfiles={() => setShowProfileModal(true)}
+          onOpenConstants={() => setShowConstantsModal(true)}
+          onAddColumn={openAddColumn}
+          onReorderColumns={() => setShowReorderModal(true)}
+          onAddRow={handleAddRow}
+        />
+      )}
+
+      {/* Header Portal for Landscape */}
+      {isLandscape && headerPortalTarget && createPortal(
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onNext}
+            disabled={data.length === 0}
+            className="flex items-center justify-center bg-blue-600 text-white px-3 py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-all text-sm shadow-sm"
+          >
+            Export <ArrowRight className="w-4 h-4 ml-1" />
+          </button>
+          {!isDraggableMode && (
+            <button
+              onClick={() => setIsDrawerOpen(true)}
+              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
+        </div>,
+        headerPortalTarget
+      )}
+
+      {/* Landscape Drawer */}
+      {isLandscape && !isDraggableMode && (
+        <>
+          {/* Backdrop */}
+          {isDrawerOpen && (
+            <div 
+              className="fixed inset-0 bg-black/50 z-[60]" 
+              onClick={() => setIsDrawerOpen(false)} 
+            />
+          )}
+          {/* Drawer */}
+          <div className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-slate-900 z-[70] shadow-2xl transform transition-transform duration-300 ${isDrawerOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+              <span className="font-semibold text-slate-800 dark:text-white">Actions</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    setIsDraggableMode(true);
+                    setIsDrawerOpen(false);
+                  }}
+                  className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                  title="Enable Draggable Mode"
+                >
+                  <Grip className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="p-2 overflow-y-auto h-[calc(100%-60px)]">
+              <DataReviewToolbar
+                sortOrder={sortOrder}
+                onSort={handleSort}
+                onScanMore={onScanMore}
+                onOpenProfiles={() => { setShowProfileModal(true); setIsDrawerOpen(false); }}
+                onOpenConstants={() => { setShowConstantsModal(true); setIsDrawerOpen(false); }}
+                onAddColumn={() => { openAddColumn(); setIsDrawerOpen(false); }}
+                onReorderColumns={() => { setShowReorderModal(true); setIsDrawerOpen(false); }}
+                onAddRow={() => { handleAddRow(); setIsDrawerOpen(false); }}
+                isVertical
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Landscape Draggable Mode */}
+      {isLandscape && isDraggableMode && (
+        <DraggableMenu
+          icon={<Menu className="w-6 h-6" />}
+          onDisableDraggable={() => setIsDraggableMode(false)}
+        >
+          <DataReviewToolbar
+            sortOrder={sortOrder}
+            onSort={handleSort}
+            onScanMore={onScanMore}
+            onOpenProfiles={() => setShowProfileModal(true)}
+            onOpenConstants={() => setShowConstantsModal(true)}
+            onAddColumn={openAddColumn}
+            onReorderColumns={() => setShowReorderModal(true)}
+            onAddRow={handleAddRow}
+            isVertical
+          />
+        </DraggableMenu>
+      )}
 
       {/* table */}
       <DataReviewTable
@@ -206,17 +309,19 @@ const DataReview: React.FC<DataReviewProps> = ({
       />
 
       {/* footer */}
-      <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-        <div className="max-w-[1600px] mx-auto flex justify-end">
-          <button
-            onClick={onNext}
-            disabled={data.length === 0}
-            className="flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-all w-full md:w-auto shadow-lg shadow-blue-500/30"
-          >
-            Proceed to Export <ArrowRight className="w-5 h-5 ml-2" />
-          </button>
+      {!isLandscape && (
+        <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+          <div className="max-w-[1600px] mx-auto flex justify-end">
+            <button
+              onClick={onNext}
+              disabled={data.length === 0}
+              className="flex items-center justify-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-all w-full md:w-auto shadow-lg shadow-blue-500/30"
+            >
+              Proceed to Export <ArrowRight className="w-5 h-5 ml-2" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

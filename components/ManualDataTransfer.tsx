@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getHistory, getExportProfiles, getTableProfiles, importSyncData } from '../services/storageService';
+import { getHistory, getExportProfiles, getTableProfiles, importSyncData, getDashboardConfig } from '../services/storageService';
 import { exportSettingsByCategory, applyImportedSettings } from '../services/settingsService';
-import { SavedScan, ExportProfile, TableProfile, SyncDataPayload } from '../types';
-import { Download, Upload, Database, FileSpreadsheet, LayoutTemplate, FileJson, ArrowLeft, Settings } from 'lucide-react';
+import { SavedScan, ExportProfile, TableProfile, SyncDataPayload, DashboardConfig } from '../types';
+import { Download, Upload, Database, FileSpreadsheet, LayoutTemplate, FileJson, ArrowLeft, Settings, LayoutDashboard } from 'lucide-react';
 import { ExpandableList } from './ExpandableList';
 
 const SETTINGS_CATEGORIES = [
@@ -23,11 +23,13 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
     const [localScans, setLocalScans] = useState<SavedScan[]>([]);
     const [localExportProfiles, setLocalExportProfiles] = useState<ExportProfile[]>([]);
     const [localTableProfiles, setLocalTableProfiles] = useState<TableProfile[]>([]);
+    const [localDashboardConfig, setLocalDashboardConfig] = useState<DashboardConfig | null>(null);
     
     const [selectedLocalScans, setSelectedLocalScans] = useState<Set<string>>(new Set());
     const [selectedLocalExportProfiles, setSelectedLocalExportProfiles] = useState<Set<string>>(new Set());
     const [selectedLocalTableProfiles, setSelectedLocalTableProfiles] = useState<Set<string>>(new Set());
     const [selectedLocalSettings, setSelectedLocalSettings] = useState<Set<string>>(new Set());
+    const [selectedLocalDashboard, setSelectedLocalDashboard] = useState<boolean>(true);
 
     // Import State
     const [importedData, setImportedData] = useState<SyncDataPayload | null>(null);
@@ -35,6 +37,7 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
     const [selectedImportExportProfiles, setSelectedImportExportProfiles] = useState<Set<string>>(new Set());
     const [selectedImportTableProfiles, setSelectedImportTableProfiles] = useState<Set<string>>(new Set());
     const [selectedImportSettings, setSelectedImportSettings] = useState<Set<string>>(new Set());
+    const [selectedImportDashboard, setSelectedImportDashboard] = useState<boolean>(true);
     const [importError, setImportError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,15 +49,18 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
             const scans = getHistory();
             const exportProfiles = getExportProfiles();
             const tableProfiles = getTableProfiles();
+            const dashboardConfig = getDashboardConfig();
             
             setLocalScans(scans);
             setLocalExportProfiles(exportProfiles);
             setLocalTableProfiles(tableProfiles);
+            setLocalDashboardConfig(dashboardConfig);
 
             setSelectedLocalScans(new Set(scans.map(s => s.id)));
             setSelectedLocalExportProfiles(new Set(exportProfiles.map(p => p.id)));
             setSelectedLocalTableProfiles(new Set(tableProfiles.map(p => p.id)));
             setSelectedLocalSettings(new Set(SETTINGS_CATEGORIES.map(c => c.id)));
+            setSelectedLocalDashboard(true);
         }
     }, [mode]);
 
@@ -67,6 +73,10 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
 
         if (selectedLocalSettings.size > 0) {
             payload.settings = exportSettingsByCategory(Array.from(selectedLocalSettings));
+        }
+        
+        if (selectedLocalDashboard && localDashboardConfig) {
+            payload.dashboardConfig = localDashboardConfig;
         }
 
         const dataStr = JSON.stringify(payload, null, 2);
@@ -106,6 +116,12 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                     } else {
                         setSelectedImportSettings(new Set());
                     }
+                    
+                    if (parsed.dashboardConfig) {
+                        setSelectedImportDashboard(true);
+                    } else {
+                        setSelectedImportDashboard(false);
+                    }
 
                     setImportError(null);
                     setStatus("File loaded successfully.");
@@ -134,7 +150,8 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                 importedData,
                 selectedImportScans,
                 selectedImportExportProfiles,
-                selectedImportTableProfiles
+                selectedImportTableProfiles,
+                selectedImportDashboard
             );
             
             if (importedData.settings && selectedImportSettings.size > 0) {
@@ -147,7 +164,7 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                 setStatus("");
                 setMode('select');
                 // Reload to apply settings immediately
-                if (selectedImportSettings.size > 0) {
+                if (selectedImportSettings.size > 0 || selectedImportDashboard) {
                     window.location.reload();
                 }
             }, 2000);
@@ -164,8 +181,8 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
         setter(newSet);
     };
 
-    const totalLocalSelected = selectedLocalScans.size + selectedLocalExportProfiles.size + selectedLocalTableProfiles.size + selectedLocalSettings.size;
-    const totalImportSelected = selectedImportScans.size + selectedImportExportProfiles.size + selectedImportTableProfiles.size + selectedImportSettings.size;
+    const totalLocalSelected = selectedLocalScans.size + selectedLocalExportProfiles.size + selectedLocalTableProfiles.size + selectedLocalSettings.size + (selectedLocalDashboard ? 1 : 0);
+    const totalImportSelected = selectedImportScans.size + selectedImportExportProfiles.size + selectedImportTableProfiles.size + selectedImportSettings.size + (selectedImportDashboard ? 1 : 0);
 
     return (
         <div className="p-4 max-w-2xl mx-auto animate-fade-in">
@@ -275,6 +292,33 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                                     isExpanded={expandedSection === 'localSettings'} 
                                     onToggleExpand={() => setExpandedSection(expandedSection === 'localSettings' ? null : 'localSettings')} 
                                 />
+                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                                    <div 
+                                        className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                        onClick={() => setSelectedLocalDashboard(!selectedLocalDashboard)}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
+                                                <LayoutDashboard className="w-5 h-5 text-teal-500" />
+                                            </div>
+                                            <div className="text-left">
+                                                <h3 className="font-semibold text-slate-900 dark:text-white">Dashboard Widgets & Layout</h3>
+                                                <p className="text-sm text-slate-500">Include your custom dashboard configuration</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedLocalDashboard}
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedLocalDashboard(e.target.checked);
+                                                }}
+                                                className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <button 
@@ -366,6 +410,35 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                                                 isExpanded={expandedSection === 'importSettings'} 
                                                 onToggleExpand={() => setExpandedSection(expandedSection === 'importSettings' ? null : 'importSettings')} 
                                             />
+                                        )}
+                                        {importedData.dashboardConfig && (
+                                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                                                <div 
+                                                    className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                                    onClick={() => setSelectedImportDashboard(!selectedImportDashboard)}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
+                                                            <LayoutDashboard className="w-5 h-5 text-teal-500" />
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <h3 className="font-semibold text-slate-900 dark:text-white">Dashboard Widgets & Layout</h3>
+                                                            <p className="text-sm text-slate-500">Import custom dashboard configuration</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedImportDashboard}
+                                                            onChange={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedImportDashboard(e.target.checked);
+                                                            }}
+                                                            className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
 

@@ -1,9 +1,10 @@
 
-import { SavedScan, TimeEntry, ColumnConfig, ExportProfile, TableProfile, SyncDataPayload } from "../types";
+import { SavedScan, TimeEntry, ColumnConfig, ExportProfile, TableProfile, SyncDataPayload, DashboardConfig } from "../types";
 
 const STORAGE_KEY = 'timesnap_history';
 const PROFILES_KEY = 'timesnap_export_profiles';
 const TABLE_PROFILES_KEY = 'table_profiles';
+const DASHBOARD_KEY = 'timesnap_dashboard_config';
 
 export const getHistory = (): SavedScan[] => {
   try {
@@ -136,7 +137,8 @@ export const importSyncData = (
     data: SyncDataPayload,
     selectedScans: Set<string>,
     selectedExportProfiles: Set<string>,
-    selectedTableProfiles: Set<string>
+    selectedTableProfiles: Set<string>,
+    importDashboard: boolean = false
 ) => {
     // Save Scans
     let currentHistory = getHistory();
@@ -171,4 +173,30 @@ export const importSyncData = (
             saveTableProfile(profile);
         }
     });
+
+    // Save Dashboard Config
+    if (importDashboard && data.dashboardConfig) {
+        saveDashboardConfig(data.dashboardConfig);
+    }
+};
+
+// --- Dashboard Config ---
+
+export const getDashboardConfig = (): DashboardConfig => {
+    try {
+        const raw = localStorage.getItem(DASHBOARD_KEY);
+        if (raw) {
+            return JSON.parse(raw);
+        }
+    } catch (e) {
+        console.error("Failed to load dashboard config", e);
+    }
+    return {
+        widgets: [],
+        isDefaultHome: false
+    };
+};
+
+export const saveDashboardConfig = (config: DashboardConfig) => {
+    localStorage.setItem(DASHBOARD_KEY, JSON.stringify(config));
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { TimeEntry, ColumnConfig, FormulaType } from "../types";
 
 interface UseDataReviewLogicProps {
@@ -366,6 +366,8 @@ export function useDataReviewLogic({
       timeFormat: "24h",
       keepEmptyIfNegative: false,
       defaultTextColor: undefined,
+      conditionalRules: undefined,
+      conditionalValue: undefined,
     });
     setShowColModal(true);
   };
@@ -384,6 +386,8 @@ export function useDataReviewLogic({
       timeFormat: existing?.timeFormat || "24h",
       keepEmptyIfNegative: existing?.keepEmptyIfNegative || false,
       defaultTextColor: existing?.defaultTextColor,
+      conditionalRules: existing?.conditionalRules,
+      conditionalValue: existing?.conditionalValue,
     });
     setShowColModal(true);
   };
@@ -406,6 +410,8 @@ export function useDataReviewLogic({
       timeFormat: modalConfig.timeFormat || "24h",
       keepEmptyIfNegative: !!modalConfig.keepEmptyIfNegative,
       defaultTextColor: modalConfig.defaultTextColor,
+      conditionalRules: modalConfig.conditionalRules,
+      conditionalValue: modalConfig.conditionalValue,
     };
 
     const updatedConfigs = isNew

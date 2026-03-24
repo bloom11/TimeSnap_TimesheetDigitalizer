@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { BookOpen, Search, X, ChevronRight } from 'lucide-react';
 import { formulaGuideDocument, searchFormulaGuide } from './formulaGuide.search';
-import { SectionBlock } from './formulaGuide.render';
+import { SectionBlock, CopyButton } from './formulaGuide.render';
 
 export * from './formulaGuide.types';
 export { searchFormulaGuide } from './formulaGuide.search';
@@ -14,6 +14,7 @@ export default function FormulaGuideModal({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
+  const [scrollToId, setScrollToId] = useState<string | null>(null);
 
   const results = useMemo(() => searchFormulaGuide(query), [query]);
   const topSections = useMemo(
@@ -21,9 +22,26 @@ export default function FormulaGuideModal({
     []
   );
 
-  if (!open) return null;
-
   const isSearching = query.trim().length > 0;
+
+  React.useEffect(() => {
+    if (scrollToId && !isSearching) {
+      setTimeout(() => {
+        const el = document.getElementById(scrollToId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Add a brief highlight effect
+          el.classList.add('ring-2', 'ring-blue-500', 'ring-offset-2', 'dark:ring-offset-slate-900', 'transition-all');
+          setTimeout(() => {
+            el.classList.remove('ring-2', 'ring-blue-500', 'ring-offset-2', 'dark:ring-offset-slate-900');
+          }, 2000);
+        }
+        setScrollToId(null);
+      }, 50);
+    }
+  }, [scrollToId, isSearching]);
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -73,7 +91,11 @@ export default function FormulaGuideModal({
               {results.map((result) => (
                 <div
                   key={result.id}
-                  className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/30"
+                  onClick={() => {
+                    setQuery('');
+                    setScrollToId(result.id);
+                  }}
+                  className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/30 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
                 >
                   <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2 flex-wrap">
                     <span className="rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-1">{result.kind}</span>
@@ -95,7 +117,10 @@ export default function FormulaGuideModal({
                   {result.summary && <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">{result.summary}</div>}
 
                   {result.example && (
-                    <div className="mt-3">
+                    <div className="mt-3 relative group/copy">
+                      <div className="absolute right-2 top-2 opacity-0 group-hover/copy:opacity-100 transition-opacity">
+                        <CopyButton text={result.example.formula} />
+                      </div>
                       <code className="block overflow-x-auto rounded bg-white dark:bg-slate-900 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
                         {result.example.formula}
                       </code>
@@ -107,7 +132,7 @@ export default function FormulaGuideModal({
           ) : (
             <div className="space-y-8">
               {topSections.map((section) => (
-                <div key={section.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
+                <div key={section.id} id={section.id} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5">
                   <div className="mb-4">
                     <div className="text-xl font-bold text-slate-900 dark:text-white">{section.title}</div>
                     {section.summary && <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">{section.summary}</div>}
