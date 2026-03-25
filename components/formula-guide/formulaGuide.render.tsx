@@ -127,16 +127,26 @@ export function ExampleList({ title, examples }: { title?: string; examples: For
   );
 }
 
-export function SectionBlock({ node }: { node: FormulaGuideNode }) {
+export function SectionBlock({ 
+  node, 
+  skipSummary = false, 
+  skipSignature = false, 
+  skipReturns = false 
+}: { 
+  node: FormulaGuideNode, 
+  skipSummary?: boolean, 
+  skipSignature?: boolean, 
+  skipReturns?: boolean 
+}) {
   return (
     <div className="space-y-4">
-      {node.summary && <p className="text-sm text-slate-600 dark:text-slate-300">{node.summary}</p>}
+      {!skipSummary && node.summary && <p className="text-sm text-slate-600 dark:text-slate-300">{node.summary}</p>}
 
-      {node.signature && (
+      {!skipSignature && node.signature && (
         <div className="font-mono text-xs text-blue-600 dark:text-blue-300">{node.signature}</div>
       )}
 
-      {node.returns?.length ? (
+      {!skipReturns && node.returns?.length ? (
         <div className="text-xs text-slate-500 dark:text-slate-400">
           Returns: {node.returns.join(', ')}
         </div>
@@ -224,7 +234,7 @@ export function SectionBlock({ node }: { node: FormulaGuideNode }) {
                 <div className="text-xs text-slate-500 dark:text-slate-400">Returns: {item.returns.join(', ')}</div>
               ) : null}
 
-              <SectionBlock node={item} />
+              <SectionBlock node={item} skipSummary={true} skipSignature={true} skipReturns={true} />
             </div>
           ))}
         </div>

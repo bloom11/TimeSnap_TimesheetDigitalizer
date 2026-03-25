@@ -9,10 +9,15 @@ interface FormulaBuilderProps {
 
 const AGGREGATIONS = [
   { label: 'SUM([column])', value: 'SUM([])', desc: 'Sum of all values' },
+  { label: 'SUM([col] WHERE [cond])', value: 'SUM([ WHERE ])', desc: 'Sum with condition' },
   { label: 'AVG([column])', value: 'AVG([])', desc: 'Average of all values' },
+  { label: 'AVG([col] WHERE [cond])', value: 'AVG([ WHERE ])', desc: 'Avg with condition' },
   { label: 'MIN([column])', value: 'MIN([])', desc: 'Minimum value' },
+  { label: 'MIN([col] WHERE [cond])', value: 'MIN([ WHERE ])', desc: 'Min with condition' },
   { label: 'MAX([column])', value: 'MAX([])', desc: 'Maximum value' },
+  { label: 'MAX([col] WHERE [cond])', value: 'MAX([ WHERE ])', desc: 'Max with condition' },
   { label: 'COUNT([column])', value: 'COUNT([])', desc: 'Count of entries' },
+  { label: 'COUNT([col] WHERE [cond])', value: 'COUNT([ WHERE ])', desc: 'Count with condition' },
 ];
 
 const LOGIC_FUNCTIONS = [

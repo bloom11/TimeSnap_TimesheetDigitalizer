@@ -160,7 +160,7 @@ const geminiGenerateContentREST = async (opts: {
     return p;
   });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${k}`;
 
 
   const body = {
@@ -176,7 +176,6 @@ const geminiGenerateContentREST = async (opts: {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": k, // ✅ consistent everywhere
       },
       body: JSON.stringify(body),
     },
@@ -501,9 +500,7 @@ export const verifyApiKey = async (provider: AIProvider, key: string, model?: st
   try {
     if (provider === "gemini") {
       // ✅ verify by calling generateContent, not by requiring non-empty text
-      const url =
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(resolvedModel)}:generateContent` +
-        `?_ts=${Date.now()}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(resolvedModel)}:generateContent?key=${k}`;
 
       if (debug) console.debug("[Verify Gemini] Request:", url);
 
@@ -513,7 +510,6 @@ export const verifyApiKey = async (provider: AIProvider, key: string, model?: st
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-goog-api-key": k,
           },
           body: JSON.stringify({
             contents: [{ parts: [{ text: "ping" }] }],

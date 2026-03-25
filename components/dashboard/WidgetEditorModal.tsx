@@ -44,7 +44,17 @@ export default function WidgetEditorModal({ open, onClose, config, onSave, onDel
 
   useEffect(() => {
     if (open) {
-      setFormData(config || { ...DEFAULT_CONFIG, id: `widget-${Date.now()}` });
+      let initialConfig = config || { ...DEFAULT_CONFIG, id: `widget-${Date.now()}` };
+      
+      // Initialize conditionChain if missing
+      if (!initialConfig.conditionChain) {
+        initialConfig = {
+          ...initialConfig,
+          conditionChain: [{ rule: { columnKey: availableColumns[0] || '', operator: 'not_empty' } }]
+        };
+      }
+      
+      setFormData(initialConfig);
     }
   }, [open, config]);
 
@@ -188,56 +198,89 @@ export default function WidgetEditorModal({ open, onClose, config, onSave, onDel
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Include Rows Where</label>
-                  <select
-                    value={formData.rowFilter?.columnKey || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (!val) {
-                        const newFormData = { ...formData };
-                        delete newFormData.rowFilter;
-                        setFormData(newFormData);
-                      } else {
-                        handleChange('rowFilter', { columnKey: val, operator: formData.rowFilter?.operator || 'not_empty' });
-                      }
-                    }}
-                    className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                  >
-                    <option value="">None (Include All Rows)</option>
-                    {availableColumns.map(k => <option key={k} value={k}>{k}</option>)}
-                  </select>
-                </div>
-                {formData.rowFilter && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Condition</label>
-                    <select
-                      value={formData.rowFilter.operator}
-                      onChange={(e) => handleChange('rowFilter', { ...formData.rowFilter, operator: e.target.value })}
-                      className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                  <div className="space-y-2">
+                    {formData.conditionChain?.map((chainItem, idx) => (
+                      <div key={idx} className="space-y-2">
+                        <div className="flex gap-2 items-center">
+                          <select
+                            value={chainItem.rule.columnKey}
+                            onChange={(e) => {
+                              const newChain = [...(formData.conditionChain || [])];
+                              newChain[idx] = { ...newChain[idx], rule: { ...newChain[idx].rule, columnKey: e.target.value } };
+                              handleChange('conditionChain', newChain);
+                            }}
+                            className="flex-1 p-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                          >
+                            {availableColumns.map(k => <option key={k} value={k}>{k}</option>)}
+                          </select>
+                          <select
+                            value={chainItem.rule.operator}
+                            onChange={(e) => {
+                              const newChain = [...(formData.conditionChain || [])];
+                              newChain[idx] = { ...newChain[idx], rule: { ...newChain[idx].rule, operator: e.target.value as any } };
+                              handleChange('conditionChain', newChain);
+                            }}
+                            className="w-24 p-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                          >
+                            <option value="is_empty">Empty</option>
+                            <option value="not_empty">Not Empty</option>
+                            <option value="equals">Equals</option>
+                            <option value="not_zero">Not Zero</option>
+                            <option value="equals_zero">Zero</option>
+                            <option value="greater_than_zero">&gt; 0</option>
+                            <option value="less_than_zero">&lt; 0</option>
+                          </select>
+                          {chainItem.rule.operator === 'equals' && (
+                            <input
+                              type="text"
+                              value={chainItem.rule.value || ""}
+                              onChange={(e) => {
+                                const newChain = [...(formData.conditionChain || [])];
+                                newChain[idx] = { ...newChain[idx], rule: { ...newChain[idx].rule, value: e.target.value } };
+                                handleChange('conditionChain', newChain);
+                              }}
+                              placeholder="Value"
+                              className="w-20 p-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                            />
+                          )}
+                          <button
+                            onClick={() => {
+                              const newChain = (formData.conditionChain || []).filter((_, i) => i !== idx);
+                              handleChange('conditionChain', newChain);
+                            }}
+                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {idx < (formData.conditionChain?.length || 0) - 1 && (
+                          <select
+                            value={chainItem.nextOperator || 'AND'}
+                            onChange={(e) => {
+                              const newChain = [...(formData.conditionChain || [])];
+                              newChain[idx] = { ...newChain[idx], nextOperator: e.target.value as any };
+                              handleChange('conditionChain', newChain);
+                            }}
+                            className="w-full p-1 border border-slate-300 dark:border-slate-700 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white text-xs text-center"
+                          >
+                            <option value="AND">AND</option>
+                            <option value="OR">OR</option>
+                            <option value="XOR">XOR</option>
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        const newChain = [...(formData.conditionChain || []), { rule: { columnKey: availableColumns[0] || '', operator: 'not_empty' } }];
+                        handleChange('conditionChain', newChain);
+                      }}
+                      className="w-full p-2 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
-                      <option value="is_empty">Is Empty</option>
-                      <option value="not_empty">Is Not Empty</option>
-                      <option value="equals">Equals</option>
-                      <option value="not_zero">Is Not Zero</option>
-                      <option value="equals_zero">Equals 0</option>
-                      <option value="greater_than_zero">Greater Than 0</option>
-                      <option value="less_than_zero">Less Than 0</option>
-                    </select>
+                      + Add Condition
+                    </button>
                   </div>
-                  {formData.rowFilter.operator === 'equals' && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Value</label>
-                      <input
-                        type="text"
-                        value={formData.rowFilter.value || ""}
-                        onChange={(e) => handleChange('rowFilter', { ...formData.rowFilter, value: e.target.value })}
-                        placeholder="Value"
-                        className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                      />
-                    </div>
-                  )}
-                </>
-              )}
+                </div>
             </div>
             </div>
           </div>

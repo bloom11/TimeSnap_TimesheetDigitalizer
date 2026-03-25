@@ -14,9 +14,10 @@
           "title": "Time Parsing & Minutes",
           "summary": "How time values are handled internally.",
           "notes": [
-            "All referenced time cells (e.g., [entrance], [exit]) are automatically converted to total minutes before evaluation.",
+            "All referenced time cells (e.g., [entrance], [exit]) are automatically converted to total minutes as a number before evaluation.",
             "For example, '8:30' becomes 510 minutes.",
-            "Empty or invalid cell values become 0 during evaluation."
+            "Empty or invalid cell values become 0 during evaluation.",
+            "IMPORTANT: All mathematical operations (SUM, AVG, +, -) are performed on these numeric minute values."
           ]
         },
         {
@@ -31,11 +32,12 @@
         },
         {
           "id": "rule-output-format",
-          "title": "Output Formatting",
+          "title": "Output Formatting & Aggregators",
           "summary": "Controlling how the result is displayed.",
           "notes": [
             "The default output format is NUMBER.",
-            "Use TIME(expression) to force the final result to be formatted as a time string (e.g., 'HH:MM').",
+            "Aggregation functions (SUM, AVG, MIN, MAX) return the result as a NUMBER (total minutes).",
+            "Use TIME(expression, \"format\") to force the final result to be formatted as a time string (e.g., 'HH:MM').",
             "Use TIME(expression, \"HOURS\") to output decimal hours (e.g., '8.50').",
             "Use TIME(expression, \"MINUTES\") to output total minutes (e.g., '510').",
             "Use TIME(expression, \"HH:MM\") or \"12h\" for custom formatting.",
@@ -57,14 +59,24 @@
         },
         {
           "id": "rule-widget-formulas",
-          "title": "Widget Engine Formulas",
-          "summary": "Special rules for formulas used in dashboard widgets.",
+          "title": "[Both] Aggregators & WHERE Clauses",
+          "summary": "Rules for using aggregators and WHERE clauses in both widgets and column formulas.",
           "notes": [
-            "Widget formulas calculate a single value across all rows in the current view.",
+            "Aggregation functions (SUM, AVG, MIN, MAX, COUNT) and WHERE clauses can be used in both dashboard widgets and standard column formulas.",
             "You MUST use aggregation functions like SUM([col]), AVG([col]), MIN([col]), MAX([col]), or COUNT([col]) to reference column data.",
+            "COUNT([col]) now supports non-numeric data (e.g., dates).",
+            "You can optionally add a WHERE clause to filter data before aggregation: SUM([col] WHERE [col2] = 'value').",
+            "Supported conditions after WHERE (only these are supported):",
+            "  - [col] = 'value' (or [col] equals 'value')",
+            "  - [col] is_empty (checks for empty string)",
+            "  - [col] not_empty (checks for non-empty string)",
+            "  - [col] not_zero (checks if value is a non-zero number)",
+            "  - [col] equals_zero (checks if value is exactly zero)",
+            "  - [col] greater_than_zero (checks if value > 0)",
+            "  - [col] less_than_zero (checks if value < 0)",
             "You cannot reference a column directly without an aggregation function (e.g., [total_hours] is invalid, use SUM([total_hours])).",
-            "Widget formulas support the same math operators, logical operators, and functions (like TIME, IF, ABS) as column formulas.",
-            "The TIME(value, \"format\") function is especially useful in widgets to format the final aggregated result (e.g., TIME(SUM([hours]), \"HOURS\"))."
+            "Formulas support the same math operators, logical operators, and functions (like TIME, IF, ABS) in both contexts.",
+            "The TIME(value, \"format\") function is especially useful to format the final aggregated result (e.g., TIME(SUM([hours]), \"HOURS\"))."
           ]
         }
       ]
@@ -200,6 +212,26 @@
       "summary": "Comprehensive examples showing how to combine functions and operators.",
       "order": 4,
       "groups": [
+        {
+          "id": "ex-conditional-agg",
+          "title": "Conditional Aggregation (WHERE clause)",
+          "examples": [
+            {
+              "id": "ex-sum-where",
+              "label": "Sum with WHERE clause",
+              "formula": "SUM([total_hours] WHERE [status] = 'completed')",
+              "resultType": "Number",
+              "note": "Sums the total_hours column only for rows where the status column equals 'completed'."
+            },
+            {
+              "id": "ex-count-where",
+              "label": "Count with WHERE clause",
+              "formula": "COUNT([id] WHERE [status] is_empty)",
+              "resultType": "Number",
+              "note": "Counts the number of rows where the status column is empty."
+            }
+          ]
+        },
         {
           "id": "ex-basic-time",
           "title": "Basic Time Calculations",

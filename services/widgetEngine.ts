@@ -1,4 +1,4 @@
-import { SavedScan, TimeEntry, WidgetConfig, ColumnConfig } from "../types";
+import { SavedScan, TimeEntry, WidgetConfig, ColumnConfig, ConditionalRule } from "../types";
 import { parseCellValue, formatTime } from "./formulaEngine";
 
 export interface WidgetEvaluationResult {
@@ -61,20 +61,75 @@ function getColumnSeparator(colKey: string, allConfigs: ColumnConfig[], fallback
 }
 
 /**
- * Evaluates an aggregation token like SUM([total_hours]) over a set of entries.
+ * Helper to evaluate a single rule against an entry.
  */
-function evaluateAggregation(op: string, colKey: string, entries: TimeEntry[], allConfigs: ColumnConfig[]): number {
+function evaluateRule(entry: TimeEntry, rule: ConditionalRule, allConfigs: ColumnConfig[]): boolean {
+  const { columnKey, operator: ruleOperator, value } = rule;
+  const sep = getColumnSeparator(columnKey, allConfigs, ":");
+  const valStr = String(entry[columnKey] || "").trim();
+  const numVal = parseCellValue(valStr, sep);
+  
+  switch (ruleOperator) {
+    case 'is_empty': return valStr === "";
+    case 'not_empty': return valStr !== "";
+    case 'not_zero': return !isNaN(numVal) && numVal !== 0;
+    case 'equals_zero': return !isNaN(numVal) && numVal === 0;
+    case 'greater_than_zero': return !isNaN(numVal) && numVal > 0;
+    case 'less_than_zero': return !isNaN(numVal) && numVal < 0;
+    case 'equals': return valStr === (value || "").trim();
+    default: return true;
+  }
+}
+
+/**
+ * Parses a simple condition string like "[col] = 'val'" into a ConditionalRule.
+ */
+function parseConditionString(condition: string): ConditionalRule | null {
+  // Robust parser for "[col] = 'val'" or "[col] is_empty"
+  const match = condition.match(/\[([^\]]+)\]\s*(=|is_empty|not_empty|not_zero|equals_zero|greater_than_zero|less_than_zero|equals)(?:\s*['"]?([^'"]+)['"]?)?/i);
+  if (!match) return null;
+  
+  let operator = match[2];
+  if (operator === '=') operator = 'equals';
+  
+  return {
+    columnKey: match[1],
+    operator: operator as any,
+    value: match[3]
+  };
+}
+
+/**
+ * Evaluates an aggregation token like SUM([total_hours] WHERE [status] = 'completed') over a set of entries.
+ */
+function evaluateAggregation(op: string, colKey: string, conditionString: string | undefined, entries: TimeEntry[], allConfigs: ColumnConfig[]): number {
   const operation = op.toUpperCase();
   const timeSep = getColumnSeparator(colKey, allConfigs, ":");
+
+  let rule: ConditionalRule | null = null;
+  if (conditionString) {
+    rule = parseConditionString(conditionString);
+  }
 
   let values: number[] = [];
 
   for (const entry of entries) {
+    // Apply WHERE filter if it exists
+    if (rule && !evaluateRule(entry, rule, allConfigs)) {
+      continue;
+    }
+
     const rawVal = entry[colKey];
     if (rawVal !== undefined && rawVal !== null && rawVal !== "") {
-      const num = parseCellValue(String(rawVal), timeSep);
-      if (!isNaN(num)) {
-        values.push(num);
+      // For numeric aggregations, we must be able to parse the value
+      if (operation !== 'COUNT') {
+        const num = parseCellValue(String(rawVal), timeSep);
+        if (!isNaN(num)) {
+          values.push(num);
+        }
+      } else {
+        // For COUNT, we just need the value to exist
+        values.push(1);
       }
     }
   }
@@ -106,9 +161,9 @@ function processFormula(formula: string, entries: TimeEntry[], constants: Record
   let expr = formula;
 
   // 1) Replace all tokens like SUM([col]), AVG([col]), etc.
-  const regex = /(SUM|AVG|MIN|MAX|COUNT)\s*\(\s*\[([^\]]+)\]\]?\s*\)/gi;
-  expr = expr.replace(regex, (match, op, colKey) => {
-    const val = evaluateAggregation(op, colKey, entries, allConfigs);
+  const regex = /(SUM|AVG|MIN|MAX|COUNT)\s*\(\s*\[([^\]]+)\](?:\s+WHERE\s+([^)]+))?\s*\)/gi;
+  expr = expr.replace(regex, (match, op, colKey, condition) => {
+    const val = evaluateAggregation(op, colKey, condition, entries, allConfigs);
     return isNaN(val) ? "0" : val.toString();
   });
 
@@ -236,32 +291,41 @@ export function evaluateWidget(
     });
   }
 
-  // 1.5 Filter entries based on rowFilter
-  if (config.rowFilter && config.rowFilter.columnKey) {
-    const { columnKey, operator, value } = config.rowFilter;
-    const sep = getColumnSeparator(columnKey, allConfigs, ":");
+  // 1.5 Filter entries based on conditionChain
+  if (config.conditionChain && config.conditionChain.length > 0) {
     filteredEntries = filteredEntries.filter(entry => {
-      const valStr = String(entry[columnKey] || "").trim();
-      const numVal = parseCellValue(valStr, sep);
+      // Helper to evaluate a single rule
+      const evaluateRule = (rule: ConditionalRule): boolean => {
+        const { columnKey, operator: ruleOperator, value } = rule;
+        const sep = getColumnSeparator(columnKey, allConfigs, ":");
+        const valStr = String(entry[columnKey] || "").trim();
+        const numVal = parseCellValue(valStr, sep);
+        
+        switch (ruleOperator) {
+          case 'is_empty': return valStr === "";
+          case 'not_empty': return valStr !== "";
+          case 'not_zero': return !isNaN(numVal) && numVal !== 0;
+          case 'equals_zero': return !isNaN(numVal) && numVal === 0;
+          case 'greater_than_zero': return !isNaN(numVal) && numVal > 0;
+          case 'less_than_zero': return !isNaN(numVal) && numVal < 0;
+          case 'equals': return valStr === (value || "").trim();
+          default: return true;
+        }
+      };
+
+      // Evaluate chain left-to-right
+      let result = evaluateRule(config.conditionChain[0].rule);
       
-      switch (operator) {
-        case 'is_empty':
-          return valStr === "";
-        case 'not_empty':
-          return valStr !== "";
-        case 'not_zero':
-          return !isNaN(numVal) && numVal !== 0;
-        case 'equals_zero':
-          return !isNaN(numVal) && numVal === 0;
-        case 'greater_than_zero':
-          return !isNaN(numVal) && numVal > 0;
-        case 'less_than_zero':
-          return !isNaN(numVal) && numVal < 0;
-        case 'equals':
-          return valStr === (value || "").trim();
-        default:
-          return true;
+      for (let i = 0; i < config.conditionChain.length - 1; i++) {
+        const nextResult = evaluateRule(config.conditionChain[i + 1].rule);
+        const op = config.conditionChain[i].nextOperator;
+        
+        if (op === 'AND') result = result && nextResult;
+        else if (op === 'OR') result = result || nextResult;
+        else if (op === 'XOR') result = result !== nextResult;
       }
+      
+      return result;
     });
   }
 

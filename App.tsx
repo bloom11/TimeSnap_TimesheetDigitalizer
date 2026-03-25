@@ -439,7 +439,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <div id="header-actions-portal" className="flex items-center gap-2"></div>
-            {!syncService && appState === AppState.HOME && !showDashboard && (
+            {!syncService && appState === AppState.HOME && showDashboard && (
                 <button onClick={startNewScan} disabled={isBusy} className="flex items-center gap-2 bg-slate-800 dark:bg-blue-600 hover:bg-slate-700 dark:hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-medium transition-colors shadow-sm text-sm disabled:opacity-50"><RotateCcw className="w-4 h-4" /><span className="hidden sm:inline">New Session</span></button>
             )}
             <button onClick={() => safeNavigate(() => setOverlay("history"))} className={`p-2 rounded-lg transition-colors ${overlay === "history" ? "bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"}`}><History className="w-5 h-5" /></button>

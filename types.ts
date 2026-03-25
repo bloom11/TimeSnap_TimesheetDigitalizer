@@ -181,6 +181,11 @@ export interface ConditionalRule {
   value?: string;
 }
 
+export interface ConditionChain {
+  rule: ConditionalRule;
+  nextOperator?: 'AND' | 'OR' | 'XOR';
+}
+
 export interface WidgetConfig {
   id: string;
   title: string;
@@ -190,7 +195,7 @@ export interface WidgetConfig {
   scanSourceId: string | 'latest'; 
   dateColumnKey: string; // e.g., "date"
   timeFilter: TimeFilter;
-  rowFilter?: ConditionalRule;
+  conditionChain?: ConditionChain[]; // New: granular conditions
   
   // Math
   formula: string; // e.g., "SUM([total_hours])"
