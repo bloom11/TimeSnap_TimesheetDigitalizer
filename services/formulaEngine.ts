@@ -1,42 +1,31 @@
 // services/formulaEngine.ts
-import { TimeEntry, ColumnConfig, ConditionalRule } from "../types";
+import { TimeEntry, ColumnConfig, ConditionChain, ConditionalRule } from "../types";
 
 export type FormulaResult = string;
 type OutputFormat = "NUMBER" | "STRING" | "TIME";
 
-function checkConditionalRules(row: TimeEntry, rules: ConditionalRule[], allConfigs: ColumnConfig[]): boolean {
-  if (!rules || rules.length === 0) return false; // If no rules, we don't apply the conditional value
+function checkConditionalRules(row: TimeEntry, chain: ConditionChain[], allConfigs: ColumnConfig[]): boolean {
+  if (!chain || chain.length === 0) return false;
 
-  for (const rule of rules) {
-    const val = (row[rule.columnKey] as string) || "";
-    const sep = getColumnSeparator(rule.columnKey, allConfigs, ":");
-    const num = parseCellValue(val, sep);
+  let result = evaluateRule(row, chain[0].rule, allConfigs);
 
-    switch (rule.operator) {
-      case "is_empty":
-        if (val.trim()) return false;
+  for (let i = 0; i < chain.length - 1; i++) {
+    const nextRuleResult = evaluateRule(row, chain[i + 1].rule, allConfigs);
+    const operator = chain[i].nextOperator || 'AND';
+
+    switch (operator) {
+      case 'AND':
+        result = result && nextRuleResult;
         break;
-      case "not_empty":
-        if (!val.trim()) return false;
+      case 'OR':
+        result = result || nextRuleResult;
         break;
-      case "not_zero":
-        if (!Number.isFinite(num) || num === 0) return false;
-        break;
-      case "equals_zero":
-        if (!Number.isFinite(num) || num !== 0) return false;
-        break;
-      case "greater_than_zero":
-        if (!Number.isFinite(num) || num <= 0) return false;
-        break;
-      case "less_than_zero":
-        if (!Number.isFinite(num) || num >= 0) return false;
-        break;
-      case "equals":
-        if (val.trim() !== (rule.value || "").trim()) return false;
+      case 'XOR':
+        result = (result || nextRuleResult) && !(result && nextRuleResult);
         break;
     }
   }
-  return true;
+  return result;
 }
 
 function escapeRegExp(s: string) {
