@@ -23,7 +23,7 @@ export interface ColumnConfig {
     timeFormat?: '12h' | '24h';
     keepEmptyIfNegative?: boolean;
     defaultTextColor?: string;
-    conditionalRules?: ConditionChain[];
+    conditionalRules?: ConditionalRule[];
     conditionalValue?: string;
 }
 

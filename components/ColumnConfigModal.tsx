@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from "react";
 import { X, Trash2, Plus, ArrowRight, Calculator, Type, Hash, Clock, ArrowDownFromLine, BookOpen, AlertCircle, CheckCircle2, Filter } from "lucide-react";
-import { ColumnConfig, FormulaType, ConditionChain } from "../types";
+import { ColumnConfig, FormulaType, ConditionalRule } from "../types";
 import FormulaInput from "./formula/FormulaInput";
 import FormulaBuilder from "./formula/FormulaBuilder";
 
@@ -137,7 +137,7 @@ export default function ColumnConfigModal({
   };
 
   const addConditionalRule = () => {
-    const newRules = [...(modalConfig.conditionalRules || []), { rule: { columnKey: columnOrder[0] || "", operator: "is_empty" as const } }];
+    const newRules = [...(modalConfig.conditionalRules || []), { columnKey: columnOrder[0] || "", operator: "is_empty" as const }];
     setModalConfig({ ...modalConfig, conditionalRules: newRules });
   };
 
@@ -146,7 +146,7 @@ export default function ColumnConfigModal({
     setModalConfig({ ...modalConfig, conditionalRules: newRules.length > 0 ? newRules : undefined });
   };
 
-  const updateConditionalRule = (index: number, updates: Partial<ConditionChain>) => {
+  const updateConditionalRule = (index: number, updates: Partial<ConditionalRule>) => {
     const newRules = (modalConfig.conditionalRules || []).map((r, i) => i === index ? { ...r, ...updates } : r);
     setModalConfig({ ...modalConfig, conditionalRules: newRules });
   };
@@ -480,15 +480,15 @@ export default function ColumnConfigModal({
                       )}
                       <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
                         <select
-                          value={rule.rule.columnKey}
-                          onChange={(e) => updateConditionalRule(idx, { rule: { ...rule.rule, columnKey: e.target.value } })}
+                          value={rule.columnKey}
+                          onChange={(e) => updateConditionalRule(idx, { columnKey: e.target.value })}
                           className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
                         >
                           {columnOrder.map(col => <option key={col} value={col}>{col}</option>)}
                         </select>
                         <select
-                          value={rule.rule.operator}
-                          onChange={(e) => updateConditionalRule(idx, { rule: { ...rule.rule, operator: e.target.value as any } })}
+                          value={rule.operator}
+                          onChange={(e) => updateConditionalRule(idx, { operator: e.target.value as any })}
                           className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
                         >
                           <option value="is_empty">Is Empty</option>
@@ -499,11 +499,11 @@ export default function ColumnConfigModal({
                           <option value="greater_than_zero">Greater Than 0</option>
                           <option value="less_than_zero">Less Than 0</option>
                         </select>
-                        {rule.rule.operator === 'equals' && (
+                        {rule.operator === 'equals' && (
                           <input
                             type="text"
-                            value={rule.rule.value || ""}
-                            onChange={(e) => updateConditionalRule(idx, { rule: { ...rule.rule, value: e.target.value } })}
+                            value={rule.value || ""}
+                            onChange={(e) => updateConditionalRule(idx, { value: e.target.value })}
                             placeholder="Value"
                             className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
                           />
@@ -516,17 +516,6 @@ export default function ColumnConfigModal({
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      {idx < (modalConfig.conditionalRules?.length || 0) - 1 && (
-                        <select
-                          value={rule.nextOperator || 'AND'}
-                          onChange={(e) => updateConditionalRule(idx, { nextOperator: e.target.value as any })}
-                          className="w-full p-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-slate-100 dark:bg-slate-700 text-center"
-                        >
-                          <option value="AND">AND</option>
-                          <option value="OR">OR</option>
-                          <option value="XOR">XOR</option>
-                        </select>
-                      )}
                     </div>
                   ))}
                   
