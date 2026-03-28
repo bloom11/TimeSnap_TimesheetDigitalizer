@@ -20,7 +20,8 @@ interface DataSyncManagerProps {
 
 export default function DataSyncManager({ service, onClose }: DataSyncManagerProps) {
     const [status, setStatus] = useState<string>("Connected. Ready to sync.");
-    const [isSyncing, setIsSyncing] = useState(false);
+    const [isSending, setIsSending] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [receivedData, setReceivedData] = useState<SyncDataPayload | null>(null);
 
     // Local Data
@@ -34,17 +35,28 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
     const [selectedLocalExportProfiles, setSelectedLocalExportProfiles] = useState<Set<string>>(new Set());
     const [selectedLocalTableProfiles, setSelectedLocalTableProfiles] = useState<Set<string>>(new Set());
     const [selectedLocalSettings, setSelectedLocalSettings] = useState<Set<string>>(new Set());
-    const [selectedLocalDashboard, setSelectedLocalDashboard] = useState<boolean>(true);
+    const [selectedLocalWidgets, setSelectedLocalWidgets] = useState<Set<string>>(new Set());
 
     // Selection state for receiving
     const [selectedReceivedScans, setSelectedReceivedScans] = useState<Set<string>>(new Set());
     const [selectedReceivedExportProfiles, setSelectedReceivedExportProfiles] = useState<Set<string>>(new Set());
     const [selectedReceivedTableProfiles, setSelectedReceivedTableProfiles] = useState<Set<string>>(new Set());
     const [selectedReceivedSettings, setSelectedReceivedSettings] = useState<Set<string>>(new Set());
-    const [selectedReceivedDashboard, setSelectedReceivedDashboard] = useState<boolean>(true);
+    const [selectedReceivedWidgets, setSelectedReceivedWidgets] = useState<Set<string>>(new Set());
 
     // Expand state
     const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+    // Conflict Dialog State
+    const [conflictDialog, setConflictDialog] = useState<{
+        isOpen: boolean;
+        details: {
+            scans: string[];
+            exportProfiles: string[];
+            tableProfiles: string[];
+            widgets: string[];
+        };
+    }>({ isOpen: false, details: { scans: [], exportProfiles: [], tableProfiles: [], widgets: [] } });
 
     useEffect(() => {
         const scans = getHistory();
@@ -61,25 +73,20 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
         setSelectedLocalExportProfiles(new Set(exportProfiles.map(p => p.id)));
         setSelectedLocalTableProfiles(new Set(tableProfiles.map(p => p.id)));
         setSelectedLocalSettings(new Set(SETTINGS_CATEGORIES.map(c => c.id)));
-        setSelectedLocalDashboard(!!dashboardConfig);
+        setSelectedLocalWidgets(new Set(dashboardConfig?.widgets.map(w => w.id) || []));
 
         const handleData = (data: any) => {
             if (data.type === 'SYNC_DATA_PAYLOAD') {
                 setReceivedData(data.payload);
-                setSelectedReceivedScans(new Set(data.payload.scans.map((s: any) => s.id)));
-                setSelectedReceivedExportProfiles(new Set(data.payload.exportProfiles.map((p: any) => p.id)));
-                setSelectedReceivedTableProfiles(new Set(data.payload.tableProfiles.map((p: any) => p.id)));
-                setSelectedReceivedDashboard(!!data.payload.dashboardConfig);
-                
-                if (data.payload.settings) {
-                    setSelectedReceivedSettings(new Set(Object.keys(data.payload.settings)));
-                } else {
-                    setSelectedReceivedSettings(new Set());
-                }
+                setSelectedReceivedScans(new Set());
+                setSelectedReceivedExportProfiles(new Set());
+                setSelectedReceivedTableProfiles(new Set());
+                setSelectedReceivedSettings(new Set());
+                setSelectedReceivedWidgets(new Set());
 
                 setStatus("Data received! Review and save.");
             } else if (data.type === 'SYNC_ACK') {
-                setIsSyncing(false);
+                setIsSending(false);
                 setStatus("Data successfully sent!");
                 setTimeout(() => setStatus("Connected. Ready to sync."), 3000);
             }
@@ -92,13 +99,13 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
         };
 
         // Override existing handlers for this component
-        (service as any).onDataReceived = handleData;
-        (service as any).onStatusChange = handleStatus;
+        service.setOnDataReceived(handleData);
+        service.setOnStatusChange(handleStatus);
 
     }, [service]);
 
     const handleSendData = () => {
-        setIsSyncing(true);
+        setIsSending(true);
         setStatus("Sending data...");
         const payload: SyncDataPayload = {
             scans: localScans.filter(s => selectedLocalScans.has(s.id)),
@@ -110,17 +117,48 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
             payload.settings = exportSettingsByCategory(Array.from(selectedLocalSettings));
         }
 
-        if (selectedLocalDashboard && localDashboardConfig) {
-            payload.dashboardConfig = localDashboardConfig;
+        if (localDashboardConfig && selectedLocalWidgets.size > 0) {
+            payload.widgets = localDashboardConfig.widgets.filter(w => selectedLocalWidgets.has(w.id));
         }
 
         service.send({ type: 'SYNC_DATA_PAYLOAD', payload });
     };
 
-    const handleSaveReceivedData = () => {
+    const handleSaveReceivedDataClick = () => {
+        if (!receivedData) return;
+
+        const existingScanIds = new Set(localScans.map(s => s.id));
+        const existingExportIds = new Set(localExportProfiles.map(p => p.id));
+        const existingTableIds = new Set(localTableProfiles.map(p => p.id));
+        const existingWidgetIds = new Set(localDashboardConfig?.widgets.map(w => w.id) || []);
+
+        const conflictingScans = receivedData.scans.filter(s => selectedReceivedScans.has(s.id) && existingScanIds.has(s.id)).map(s => s.name);
+        const conflictingExportProfiles = receivedData.exportProfiles.filter(p => selectedReceivedExportProfiles.has(p.id) && existingExportIds.has(p.id)).map(p => p.name);
+        const conflictingTableProfiles = receivedData.tableProfiles.filter(p => selectedReceivedTableProfiles.has(p.id) && existingTableIds.has(p.id)).map(p => p.name);
+        const conflictingWidgets = (receivedData.widgets || []).filter(w => selectedReceivedWidgets.has(w.id) && existingWidgetIds.has(w.id)).map(w => w.title);
+
+        const totalConflicts = conflictingScans.length + conflictingExportProfiles.length + conflictingTableProfiles.length + conflictingWidgets.length;
+
+        if (totalConflicts > 0) {
+            setConflictDialog({ 
+                isOpen: true, 
+                details: {
+                    scans: conflictingScans,
+                    exportProfiles: conflictingExportProfiles,
+                    tableProfiles: conflictingTableProfiles,
+                    widgets: conflictingWidgets
+                }
+            });
+        } else {
+            handleSaveReceivedData('skip');
+        }
+    };
+
+    const handleSaveReceivedData = (resolution: 'skip' | 'overwrite' | 'rename') => {
+        setConflictDialog({ isOpen: false, details: { scans: [], exportProfiles: [], tableProfiles: [], widgets: [] } });
         if (!receivedData) return;
         
-        setIsSyncing(true);
+        setIsSaving(true);
         setStatus("Saving received data...");
 
         try {
@@ -129,7 +167,8 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
                 selectedReceivedScans,
                 selectedReceivedExportProfiles,
                 selectedReceivedTableProfiles,
-                selectedReceivedDashboard
+                selectedReceivedWidgets,
+                resolution
             );
 
             if (receivedData.settings && selectedReceivedSettings.size > 0) {
@@ -151,16 +190,16 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
             setSelectedLocalScans(new Set(newScans.map(s => s.id)));
             setSelectedLocalExportProfiles(new Set(newExportProfiles.map(p => p.id)));
             setSelectedLocalTableProfiles(new Set(newTableProfiles.map(p => p.id)));
-            setSelectedLocalDashboard(!!newDashboardConfig);
+            setSelectedLocalWidgets(new Set(newDashboardConfig?.widgets.map(w => w.id) || []));
             
             setReceivedData(null);
             setStatus("Data saved successfully!");
             service.send({ type: 'SYNC_ACK', payload: { success: true } });
             
             setTimeout(() => {
-                setIsSyncing(false);
+                setIsSaving(false);
                 setStatus("Connected. Ready to sync.");
-                if (selectedReceivedSettings.size > 0 || selectedReceivedDashboard) {
+                if (selectedReceivedSettings.size > 0 || selectedReceivedWidgets.size > 0) {
                     window.location.reload();
                 }
             }, 2000);
@@ -168,7 +207,7 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
         } catch (error) {
             console.error("Error saving synced data", error);
             setStatus("Error saving data.");
-            setIsSyncing(false);
+            setIsSaving(false);
         }
     };
 
@@ -178,6 +217,23 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
         setTimeout(() => setStatus("Connected. Ready to sync."), 2000);
     };
 
+    const handleSelectAllReceived = () => {
+        if (!receivedData) return;
+        setSelectedReceivedScans(new Set(receivedData.scans.map(s => s.id)));
+        setSelectedReceivedExportProfiles(new Set(receivedData.exportProfiles.map(p => p.id)));
+        setSelectedReceivedTableProfiles(new Set(receivedData.tableProfiles.map(p => p.id)));
+        if (receivedData.settings) setSelectedReceivedSettings(new Set(Object.keys(receivedData.settings)));
+        if (receivedData.widgets) setSelectedReceivedWidgets(new Set(receivedData.widgets.map(w => w.id)));
+    };
+
+    const handleDeselectAllReceived = () => {
+        setSelectedReceivedScans(new Set());
+        setSelectedReceivedExportProfiles(new Set());
+        setSelectedReceivedTableProfiles(new Set());
+        setSelectedReceivedSettings(new Set());
+        setSelectedReceivedWidgets(new Set());
+    };
+
     const toggleSet = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => {
         const newSet = new Set(set);
         if (newSet.has(id)) newSet.delete(id);
@@ -185,21 +241,21 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
         setter(newSet);
     };
 
-    const totalLocalSelected = selectedLocalScans.size + selectedLocalExportProfiles.size + selectedLocalTableProfiles.size + selectedLocalSettings.size + (selectedLocalDashboard ? 1 : 0);
-    const totalReceivedSelected = selectedReceivedScans.size + selectedReceivedExportProfiles.size + selectedReceivedTableProfiles.size + selectedReceivedSettings.size + (selectedReceivedDashboard ? 1 : 0);
+    const totalLocalSelected = selectedLocalScans.size + selectedLocalExportProfiles.size + selectedLocalTableProfiles.size + selectedLocalSettings.size + selectedLocalWidgets.size;
+    const totalReceivedSelected = selectedReceivedScans.size + selectedReceivedExportProfiles.size + selectedReceivedTableProfiles.size + selectedReceivedSettings.size + selectedReceivedWidgets.size;
 
     return (
         <div className="p-4 max-w-4xl mx-auto animate-fade-in">
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <Database className="w-6 h-6 text-blue-600" />
-                            Data Synchronization
+                <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex flex-wrap gap-4 justify-between items-start sm:items-center bg-slate-50 dark:bg-slate-900/50">
+                    <div className="min-w-0 flex-1">
+                        <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 truncate">
+                            <Database className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 shrink-0" />
+                            <span className="truncate">Data Synchronization</span>
                         </h2>
-                        <p className="text-sm text-slate-500 mt-1">{status}</p>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-1 truncate">{status}</p>
                     </div>
-                    <button onClick={onClose} className="px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+                    <button onClick={onClose} className="shrink-0 px-3 py-1.5 sm:px-4 sm:py-2 text-sm sm:text-base bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
                         Disconnect
                     </button>
                 </div>
@@ -262,48 +318,43 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
                                 isExpanded={expandedSection === 'localSettings'} 
                                 onToggleExpand={() => setExpandedSection(expandedSection === 'localSettings' ? null : 'localSettings')} 
                             />
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                                <div 
-                                    className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                    onClick={() => setSelectedLocalDashboard(!selectedLocalDashboard)}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
-                                            <LayoutDashboard className="w-5 h-5 text-teal-500" />
-                                        </div>
-                                        <div className="text-left">
-                                            <h3 className="font-semibold text-slate-900 dark:text-white">Dashboard Widgets & Layout</h3>
-                                            <p className="text-sm text-slate-500">Include your custom dashboard configuration</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={selectedLocalDashboard}
-                                            onChange={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedLocalDashboard(e.target.checked);
-                                            }}
-                                            className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
+                            <ExpandableList 
+                                title="Dashboard Widgets" 
+                                icon={<LayoutDashboard className="w-5 h-5 text-teal-500" />} 
+                                items={localDashboardConfig?.widgets || []} 
+                                selectedIds={selectedLocalWidgets} 
+                                onToggle={(id) => toggleSet(selectedLocalWidgets, id, setSelectedLocalWidgets)} 
+                                onSelectAll={() => setSelectedLocalWidgets(new Set(localDashboardConfig?.widgets.map(w => w.id) || []))} 
+                                onDeselectAll={() => setSelectedLocalWidgets(new Set())} 
+                                renderItem={(w) => w.title} 
+                                getId={(w) => w.id} 
+                                isExpanded={expandedSection === 'localWidgets'} 
+                                onToggleExpand={() => setExpandedSection(expandedSection === 'localWidgets' ? null : 'localWidgets')} 
+                            />
                         </div>
 
                         <button 
                             onClick={handleSendData}
-                            disabled={isSyncing || totalLocalSelected === 0}
+                            disabled={isSending || isSaving || totalLocalSelected === 0}
                             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
                         >
-                            {isSyncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                            {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
                             Send Selected ({totalLocalSelected})
                         </button>
                     </div>
 
                     {/* Remote Data Section */}
                     <div className="space-y-6">
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white border-b pb-2">Received Data</h3>
+                        <div className="flex items-center justify-between border-b pb-2">
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">Received Data</h3>
+                            {receivedData && (
+                                <div className="flex gap-2">
+                                    <button onClick={handleSelectAllReceived} className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">Select All</button>
+                                    <span className="text-slate-300 dark:text-slate-600">|</span>
+                                    <button onClick={handleDeselectAllReceived} className="text-xs font-medium text-slate-500 hover:underline">None</button>
+                                </div>
+                            )}
+                        </div>
                         
                         {receivedData ? (
                             <div className="space-y-6 animate-fade-in">
@@ -362,51 +413,37 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
                                             onToggleExpand={() => setExpandedSection(expandedSection === 'receivedSettings' ? null : 'receivedSettings')} 
                                         />
                                     )}
-                                    {receivedData.dashboardConfig && (
-                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                                            <div 
-                                                className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                                onClick={() => setSelectedReceivedDashboard(!selectedReceivedDashboard)}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
-                                                        <LayoutDashboard className="w-5 h-5 text-teal-500" />
-                                                    </div>
-                                                    <div className="text-left">
-                                                        <h3 className="font-semibold text-slate-900 dark:text-white">Dashboard Widgets & Layout</h3>
-                                                        <p className="text-sm text-slate-500">Import custom dashboard configuration</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={selectedReceivedDashboard}
-                                                        onChange={(e) => {
-                                                            e.stopPropagation();
-                                                            setSelectedReceivedDashboard(e.target.checked);
-                                                        }}
-                                                        className="w-5 h-5 rounded border-slate-300 text-green-600 focus:ring-green-500"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
+                                    {receivedData.widgets && receivedData.widgets.length > 0 && (
+                                        <ExpandableList 
+                                            title="Widgets to import" 
+                                            icon={<LayoutDashboard className="w-5 h-5 text-teal-500" />} 
+                                            items={receivedData.widgets} 
+                                            selectedIds={selectedReceivedWidgets} 
+                                            onToggle={(id) => toggleSet(selectedReceivedWidgets, id, setSelectedReceivedWidgets)} 
+                                            onSelectAll={() => setSelectedReceivedWidgets(new Set(receivedData.widgets!.map(w => w.id)))} 
+                                            onDeselectAll={() => setSelectedReceivedWidgets(new Set())} 
+                                            renderItem={(w) => w.title} 
+                                            getId={(w) => w.id} 
+                                            isExpanded={expandedSection === 'receivedWidgets'} 
+                                            onToggleExpand={() => setExpandedSection(expandedSection === 'receivedWidgets' ? null : 'receivedWidgets')} 
+                                        />
                                     )}
                                 </div>
 
                                 <div className="flex gap-3">
                                     <button 
                                         onClick={handleDiscardReceivedData}
-                                        disabled={isSyncing}
+                                        disabled={isSaving}
                                         className="flex-1 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all disabled:opacity-50"
                                     >
                                         Discard
                                     </button>
                                     <button 
-                                        onClick={handleSaveReceivedData}
-                                        disabled={isSyncing || totalReceivedSelected === 0}
+                                        onClick={handleSaveReceivedDataClick}
+                                        disabled={isSaving || totalReceivedSelected === 0}
                                         className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-md flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
                                     >
-                                        {isSyncing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                                        {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
                                         Save Selected ({totalReceivedSelected})
                                     </button>
                                 </div>
@@ -421,6 +458,92 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
                     </div>
                 </div>
             </div>
+
+            {/* Conflict Resolution Dialog */}
+            {conflictDialog.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-slide-up border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-amber-50 dark:bg-amber-900/20 shrink-0">
+                            <h3 className="text-xl font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                                <AlertCircle className="w-6 h-6" />
+                                Data Conflict Detected
+                            </h3>
+                        </div>
+                        <div className="p-6 overflow-y-auto">
+                            <p className="text-slate-600 dark:text-slate-300 mb-4">
+                                The following items already exist on this device. How would you like to handle them?
+                            </p>
+                            
+                            <div className="space-y-4 mb-6">
+                                {conflictDialog.details.scans.length > 0 && (
+                                    <div>
+                                        <h4 className="font-bold text-red-600 dark:text-red-400 mb-1">Scans ({conflictDialog.details.scans.length})</h4>
+                                        <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400">
+                                            {conflictDialog.details.scans.map((name, i) => <li key={i}>{name}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                                {conflictDialog.details.exportProfiles.length > 0 && (
+                                    <div>
+                                        <h4 className="font-bold text-red-600 dark:text-red-400 mb-1">Export Profiles ({conflictDialog.details.exportProfiles.length})</h4>
+                                        <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400">
+                                            {conflictDialog.details.exportProfiles.map((name, i) => <li key={i}>{name}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                                {conflictDialog.details.tableProfiles.length > 0 && (
+                                    <div>
+                                        <h4 className="font-bold text-red-600 dark:text-red-400 mb-1">Table Profiles ({conflictDialog.details.tableProfiles.length})</h4>
+                                        <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400">
+                                            {conflictDialog.details.tableProfiles.map((name, i) => <li key={i}>{name}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                                {conflictDialog.details.widgets.length > 0 && (
+                                    <div>
+                                        <h4 className="font-bold text-red-600 dark:text-red-400 mb-1">Widgets ({conflictDialog.details.widgets.length})</h4>
+                                        <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400">
+                                            {conflictDialog.details.widgets.map((name, i) => <li key={i}>{name}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => handleSaveReceivedData('skip')}
+                                    className="w-full p-4 text-left border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    <div className="font-bold text-slate-900 dark:text-white">Skip Existing</div>
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">Only import new items. Existing items will not be modified.</div>
+                                </button>
+                                <button
+                                    onClick={() => handleSaveReceivedData('rename')}
+                                    className="w-full p-4 text-left border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    <div className="font-bold text-slate-900 dark:text-white">Import as Copies</div>
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">Keep both versions. Imported items will be renamed with "(Copy)".</div>
+                                </button>
+                                <button
+                                    onClick={() => handleSaveReceivedData('overwrite')}
+                                    className="w-full p-4 text-left border border-red-200 dark:border-red-900/50 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                >
+                                    <div className="font-bold text-red-600 dark:text-red-400">Overwrite Existing</div>
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">Replace local items with the imported versions. This cannot be undone.</div>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 flex justify-end bg-slate-50 dark:bg-slate-900/50">
+                            <button
+                                onClick={() => setConflictDialog({ isOpen: false, details: { scans: [], exportProfiles: [], tableProfiles: [], widgets: [] } })}
+                                className="px-6 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

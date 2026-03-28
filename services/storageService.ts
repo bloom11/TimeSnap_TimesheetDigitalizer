@@ -92,11 +92,21 @@ export const getExportProfiles = (): ExportProfile[] => {
     }
 };
 
-export const saveExportProfile = (profile: Omit<ExportProfile, 'id'>): ExportProfile => {
+export const saveExportProfile = (profile: ExportProfile | Omit<ExportProfile, 'id'>): ExportProfile => {
     const profiles = getExportProfiles();
+    
+    if ('id' in profile && profile.id) {
+        const existingIndex = profiles.findIndex(p => p.id === profile.id);
+        if (existingIndex >= 0) {
+            profiles[existingIndex] = profile as ExportProfile;
+            localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+            return profile as ExportProfile;
+        }
+    }
+    
     const newProfile: ExportProfile = {
         ...profile,
-        id: `profile-${Date.now()}`
+        id: ('id' in profile && profile.id) ? profile.id : `profile-${Date.now()}`
     };
     localStorage.setItem(PROFILES_KEY, JSON.stringify([...profiles, newProfile]));
     return newProfile;
@@ -138,7 +148,8 @@ export const importSyncData = (
     selectedScans: Set<string>,
     selectedExportProfiles: Set<string>,
     selectedTableProfiles: Set<string>,
-    importDashboard: boolean = false
+    selectedWidgets: Set<string> = new Set(),
+    conflictResolution: 'skip' | 'overwrite' | 'rename' = 'skip'
 ) => {
     // Save Scans
     let currentHistory = getHistory();
@@ -146,7 +157,18 @@ export const importSyncData = (
     let newScansAdded = false;
 
     data.scans.filter(s => selectedScans.has(s.id)).forEach(scan => {
-        if (!existingScanIds.has(scan.id)) {
+        if (existingScanIds.has(scan.id)) {
+            if (conflictResolution === 'skip') return;
+            if (conflictResolution === 'overwrite') {
+                const index = currentHistory.findIndex(s => s.id === scan.id);
+                if (index >= 0) currentHistory[index] = scan;
+                newScansAdded = true;
+            } else if (conflictResolution === 'rename') {
+                const newScan = { ...scan, id: crypto.randomUUID(), name: `${scan.name} (Copy)` };
+                currentHistory = [newScan, ...currentHistory];
+                newScansAdded = true;
+            }
+        } else {
             currentHistory = [scan, ...currentHistory];
             newScansAdded = true;
         }
@@ -160,7 +182,14 @@ export const importSyncData = (
     const currentExportProfiles = getExportProfiles();
     const existingExportIds = new Set(currentExportProfiles.map(p => p.id));
     data.exportProfiles.filter(p => selectedExportProfiles.has(p.id)).forEach(profile => {
-        if (!existingExportIds.has(profile.id)) {
+        if (existingExportIds.has(profile.id)) {
+            if (conflictResolution === 'skip') return;
+            if (conflictResolution === 'overwrite') {
+                saveExportProfile(profile);
+            } else if (conflictResolution === 'rename') {
+                saveExportProfile({ ...profile, id: crypto.randomUUID(), name: `${profile.name} (Copy)` });
+            }
+        } else {
             saveExportProfile(profile);
         }
     });
@@ -169,14 +198,45 @@ export const importSyncData = (
     const currentTableProfiles = getTableProfiles();
     const existingTableIds = new Set(currentTableProfiles.map(p => p.id));
     data.tableProfiles.filter(p => selectedTableProfiles.has(p.id)).forEach(profile => {
-        if (!existingTableIds.has(profile.id)) {
+        if (existingTableIds.has(profile.id)) {
+            if (conflictResolution === 'skip') return;
+            if (conflictResolution === 'overwrite') {
+                saveTableProfile(profile);
+            } else if (conflictResolution === 'rename') {
+                saveTableProfile({ ...profile, id: crypto.randomUUID(), name: `${profile.name} (Copy)` });
+            }
+        } else {
             saveTableProfile(profile);
         }
     });
 
-    // Save Dashboard Config
-    if (importDashboard && data.dashboardConfig) {
-        saveDashboardConfig(data.dashboardConfig);
+    // Save Widgets
+    if (data.widgets && selectedWidgets.size > 0) {
+        const currentDashboard = getDashboardConfig();
+        const existingWidgetIds = new Set(currentDashboard.widgets.map(w => w.id));
+        let newWidgets = [...currentDashboard.widgets];
+        let widgetsChanged = false;
+
+        data.widgets.filter(w => selectedWidgets.has(w.id)).forEach(widget => {
+            if (existingWidgetIds.has(widget.id)) {
+                if (conflictResolution === 'skip') return;
+                if (conflictResolution === 'overwrite') {
+                    const index = newWidgets.findIndex(w => w.id === widget.id);
+                    if (index >= 0) newWidgets[index] = widget;
+                    widgetsChanged = true;
+                } else if (conflictResolution === 'rename') {
+                    newWidgets.push({ ...widget, id: crypto.randomUUID(), title: `${widget.title} (Copy)` });
+                    widgetsChanged = true;
+                }
+            } else {
+                newWidgets.push(widget);
+                widgetsChanged = true;
+            }
+        });
+
+        if (widgetsChanged) {
+            saveDashboardConfig({ ...currentDashboard, widgets: newWidgets });
+        }
     }
 };
 

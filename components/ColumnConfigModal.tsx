@@ -136,19 +136,37 @@ export default function ColumnConfigModal({
     }
   };
 
+  const getActiveChain = () => {
+    if (modalConfig.conditionChain) return modalConfig.conditionChain;
+    if (modalConfig.conditionalRules) {
+      return modalConfig.conditionalRules.map(rule => ({ rule, nextOperator: 'AND' as const }));
+    }
+    return [];
+  };
+
   const addConditionalRule = () => {
-    const newRules = [...(modalConfig.conditionalRules || []), { columnKey: columnOrder[0] || "", operator: "is_empty" as const }];
-    setModalConfig({ ...modalConfig, conditionalRules: newRules });
+    const chain = getActiveChain();
+    const newRule = { columnKey: columnOrder[0] || "", operator: "is_empty" as const };
+    const newChain = [...chain, { rule: newRule, nextOperator: 'AND' as const }];
+    setModalConfig({ ...modalConfig, conditionChain: newChain, conditionalRules: undefined });
   };
 
   const removeConditionalRule = (index: number) => {
-    const newRules = (modalConfig.conditionalRules || []).filter((_, i) => i !== index);
-    setModalConfig({ ...modalConfig, conditionalRules: newRules.length > 0 ? newRules : undefined });
+    const chain = getActiveChain();
+    const newChain = chain.filter((_, i) => i !== index);
+    setModalConfig({ ...modalConfig, conditionChain: newChain.length > 0 ? newChain : undefined, conditionalRules: undefined });
   };
 
   const updateConditionalRule = (index: number, updates: Partial<ConditionalRule>) => {
-    const newRules = (modalConfig.conditionalRules || []).map((r, i) => i === index ? { ...r, ...updates } : r);
-    setModalConfig({ ...modalConfig, conditionalRules: newRules });
+    const chain = getActiveChain();
+    const newChain = chain.map((item, i) => i === index ? { ...item, rule: { ...item.rule, ...updates } } : item);
+    setModalConfig({ ...modalConfig, conditionChain: newChain, conditionalRules: undefined });
+  };
+
+  const updateChainOperator = (index: number, operator: 'AND' | 'OR' | 'XOR') => {
+    const chain = getActiveChain();
+    const newChain = chain.map((item, i) => i === index ? { ...item, nextOperator: operator } : item);
+    setModalConfig({ ...modalConfig, conditionChain: newChain, conditionalRules: undefined });
   };
 
   if (!open) return null;
@@ -453,100 +471,115 @@ export default function ColumnConfigModal({
                 </div>
               )}
 
-              {/* Conditional Value Rules - Moved outside complex block to be available for all */}
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                    <Filter className="w-3 h-3" /> Conditional Value Rules
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={addConditionalRule}
-                    className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md hover:bg-blue-100 transition-colors font-bold"
-                  >
-                    + Add Condition
-                  </button>
-                </div>
 
-                <div className="space-y-3">
-                  {(modalConfig.conditionalRules || []).map((rule, idx) => (
-                    <div key={idx} className="space-y-2">
-                      {idx > 0 && (
-                        <div className="flex justify-center -my-1 relative z-10">
-                          <div className="bg-blue-500 text-white w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 shadow-sm">
-                            <Plus className="w-3 h-3" />
-                          </div>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
-                        <select
-                          value={rule.columnKey}
-                          onChange={(e) => updateConditionalRule(idx, { columnKey: e.target.value })}
-                          className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
-                        >
-                          {columnOrder.map(col => <option key={col} value={col}>{col}</option>)}
-                        </select>
-                        <select
-                          value={rule.operator}
-                          onChange={(e) => updateConditionalRule(idx, { operator: e.target.value as any })}
-                          className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
-                        >
-                          <option value="is_empty">Is Empty</option>
-                          <option value="not_empty">Is Not Empty</option>
-                          <option value="equals">Equals</option>
-                          <option value="not_zero">Is Not Zero</option>
-                          <option value="equals_zero">Equals 0</option>
-                          <option value="greater_than_zero">Greater Than 0</option>
-                          <option value="less_than_zero">Less Than 0</option>
-                        </select>
-                        {rule.operator === 'equals' && (
-                          <input
-                            type="text"
-                            value={rule.value || ""}
-                            onChange={(e) => updateConditionalRule(idx, { value: e.target.value })}
-                            placeholder="Value"
-                            className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
-                          />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => removeConditionalRule(idx)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {(modalConfig.conditionalRules && modalConfig.conditionalRules.length > 0) && (
-                    <div className="bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 space-y-2">
-                      <label className="block text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                        THEN set value to:
-                      </label>
-                      <input
-                        type="text"
-                        value={modalConfig.conditionalValue || ""}
-                        onChange={(e) => setModalConfig({ ...modalConfig, conditionalValue: e.target.value })}
-                        placeholder="e.g. 0:00 or Manual"
-                        className="w-full p-2 text-sm border border-blue-200 dark:border-blue-800 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20"
-                      />
-                    </div>
-                  )}
-
-                  {(!modalConfig.conditionalRules || modalConfig.conditionalRules.length === 0) && (
-                    <div className="text-[10px] text-slate-400 italic text-center py-2">
-                      No conditional rules defined. Normal formula logic applies.
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-[10px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg">
-                  <strong>How it works:</strong> If all conditions are met, the column will display the "THEN" value. Otherwise, it will use the normal formula or manual input.
-                </div>
-              </div>
             </div>
           )}
+
+          {/* Conditional Value Rules - Moved outside complex block to be available for all */}
+          <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 animate-fade-in space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                <Filter className="w-3 h-3" /> Conditional Value Rules
+              </h4>
+              <button
+                type="button"
+                onClick={addConditionalRule}
+                className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md hover:bg-blue-100 transition-colors font-bold"
+              >
+                + Add Condition
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {getActiveChain().map((item, idx) => (
+                <div key={idx} className="space-y-2">
+                  {idx > 0 && (
+                    <div className="flex justify-center -my-1 relative z-10">
+                      <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                        {(['AND', 'OR', 'XOR'] as const).map(op => (
+                          <button
+                            key={op}
+                            type="button"
+                            onClick={() => updateChainOperator(idx - 1, op)}
+                            className={`px-3 py-1 text-[10px] font-bold rounded-md transition-colors ${
+                              getActiveChain()[idx - 1].nextOperator === op
+                                ? 'bg-blue-500 text-white shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                            }`}
+                          >
+                            {op}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <select
+                      value={item.rule.columnKey}
+                      onChange={(e) => updateConditionalRule(idx, { columnKey: e.target.value })}
+                      className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
+                    >
+                      {columnOrder.map(col => <option key={col} value={col}>{col}</option>)}
+                    </select>
+                    <select
+                      value={item.rule.operator}
+                      onChange={(e) => updateConditionalRule(idx, { operator: e.target.value as any })}
+                      className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
+                    >
+                      <option value="is_empty">Is Empty</option>
+                      <option value="not_empty">Is Not Empty</option>
+                      <option value="equals">Equals</option>
+                      <option value="not_zero">Is Not Zero</option>
+                      <option value="equals_zero">Equals 0</option>
+                      <option value="greater_than_zero">Greater Than 0</option>
+                      <option value="less_than_zero">Less Than 0</option>
+                    </select>
+                    {item.rule.operator === 'equals' && (
+                      <input
+                        type="text"
+                        value={item.rule.value || ""}
+                        onChange={(e) => updateConditionalRule(idx, { value: e.target.value })}
+                        placeholder="Value"
+                        className="flex-1 p-1.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-900"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeConditionalRule(idx)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              
+              {getActiveChain().length > 0 && (
+                <div className="bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 space-y-2">
+                  <label className="block text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                    THEN set value to:
+                  </label>
+                  <input
+                    type="text"
+                    value={modalConfig.conditionalValue || ""}
+                    onChange={(e) => setModalConfig({ ...modalConfig, conditionalValue: e.target.value })}
+                    placeholder="e.g. 0:00 or Manual"
+                    className="w-full p-2 text-sm border border-blue-200 dark:border-blue-800 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              )}
+
+              {getActiveChain().length === 0 && (
+                <div className="text-[10px] text-slate-400 italic text-center py-2">
+                  No conditional rules defined. Normal formula logic applies.
+                </div>
+              )}
+            </div>
+
+            <div className="text-[10px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg">
+              <strong>How it works:</strong> If all conditions are met, the column will display the "THEN" value. Otherwise, it will use the normal formula or manual input.
+            </div>
+          </div>
         </div>
 
         <div className="p-5 border-t border-slate-100 dark:border-slate-800 flex gap-3">

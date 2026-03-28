@@ -115,6 +115,14 @@ export class SyncService {
         });
     }
 
+    public setOnDataReceived(callback: (data: PeerMessage) => void) {
+        this.onDataReceived = callback;
+    }
+
+    public setOnStatusChange(callback: (status: string, connected: boolean) => void) {
+        this.onStatusChange = callback;
+    }
+
     private handleConnection(conn: DataConnection) {
         this.conn = conn;
 

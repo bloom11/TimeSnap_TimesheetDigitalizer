@@ -24,6 +24,7 @@ export interface ColumnConfig {
     keepEmptyIfNegative?: boolean;
     defaultTextColor?: string;
     conditionalRules?: ConditionalRule[];
+    conditionChain?: ConditionChain[];
     conditionalValue?: string;
 }
 
@@ -149,6 +150,7 @@ export interface SyncDataPayload {
   exportProfiles: ExportProfile[];
   settings?: SyncSettingsPayload;
   dashboardConfig?: DashboardConfig;
+  widgets?: WidgetConfig[];
 }
 
 export interface PeerMessage {

@@ -367,6 +367,7 @@ export function useDataReviewLogic({
       keepEmptyIfNegative: false,
       defaultTextColor: undefined,
       conditionalRules: undefined,
+      conditionChain: undefined,
       conditionalValue: undefined,
     });
     setShowColModal(true);
@@ -387,6 +388,7 @@ export function useDataReviewLogic({
       keepEmptyIfNegative: existing?.keepEmptyIfNegative || false,
       defaultTextColor: existing?.defaultTextColor,
       conditionalRules: existing?.conditionalRules,
+      conditionChain: existing?.conditionChain,
       conditionalValue: existing?.conditionalValue,
     });
     setShowColModal(true);
@@ -411,6 +413,7 @@ export function useDataReviewLogic({
       keepEmptyIfNegative: !!modalConfig.keepEmptyIfNegative,
       defaultTextColor: modalConfig.defaultTextColor,
       conditionalRules: modalConfig.conditionalRules,
+      conditionChain: modalConfig.conditionChain,
       conditionalValue: modalConfig.conditionalValue,
     };
 

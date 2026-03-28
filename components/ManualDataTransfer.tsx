@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getHistory, getExportProfiles, getTableProfiles, importSyncData, getDashboardConfig } from '../services/storageService';
 import { exportSettingsByCategory, applyImportedSettings } from '../services/settingsService';
 import { SavedScan, ExportProfile, TableProfile, SyncDataPayload, DashboardConfig } from '../types';
-import { Download, Upload, Database, FileSpreadsheet, LayoutTemplate, FileJson, ArrowLeft, Settings, LayoutDashboard } from 'lucide-react';
+import { Download, Upload, Database, FileSpreadsheet, LayoutTemplate, FileJson, ArrowLeft, Settings, LayoutDashboard, AlertCircle } from 'lucide-react';
 import { ExpandableList } from './ExpandableList';
 
 const SETTINGS_CATEGORIES = [
@@ -24,12 +24,13 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
     const [localExportProfiles, setLocalExportProfiles] = useState<ExportProfile[]>([]);
     const [localTableProfiles, setLocalTableProfiles] = useState<TableProfile[]>([]);
     const [localDashboardConfig, setLocalDashboardConfig] = useState<DashboardConfig | null>(null);
+    const [localWidgets, setLocalWidgets] = useState<any[]>([]);
     
     const [selectedLocalScans, setSelectedLocalScans] = useState<Set<string>>(new Set());
     const [selectedLocalExportProfiles, setSelectedLocalExportProfiles] = useState<Set<string>>(new Set());
     const [selectedLocalTableProfiles, setSelectedLocalTableProfiles] = useState<Set<string>>(new Set());
     const [selectedLocalSettings, setSelectedLocalSettings] = useState<Set<string>>(new Set());
-    const [selectedLocalDashboard, setSelectedLocalDashboard] = useState<boolean>(true);
+    const [selectedLocalWidgets, setSelectedLocalWidgets] = useState<Set<string>>(new Set());
 
     // Import State
     const [importedData, setImportedData] = useState<SyncDataPayload | null>(null);
@@ -37,12 +38,26 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
     const [selectedImportExportProfiles, setSelectedImportExportProfiles] = useState<Set<string>>(new Set());
     const [selectedImportTableProfiles, setSelectedImportTableProfiles] = useState<Set<string>>(new Set());
     const [selectedImportSettings, setSelectedImportSettings] = useState<Set<string>>(new Set());
-    const [selectedImportDashboard, setSelectedImportDashboard] = useState<boolean>(true);
+    const [selectedImportWidgets, setSelectedImportWidgets] = useState<Set<string>>(new Set());
     const [importError, setImportError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [expandedSection, setExpandedSection] = useState<string | null>(null);
     const [status, setStatus] = useState<string>("");
+
+    // Conflict Dialog State
+    const [conflictDialog, setConflictDialog] = useState<{
+        isOpen: boolean;
+        details: {
+            scans: string[];
+            exportProfiles: string[];
+            tableProfiles: string[];
+            widgets: string[];
+        };
+    }>({ 
+        isOpen: false, 
+        details: { scans: [], exportProfiles: [], tableProfiles: [], widgets: [] } 
+    });
 
     useEffect(() => {
         if (mode === 'export') {
@@ -55,12 +70,13 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
             setLocalExportProfiles(exportProfiles);
             setLocalTableProfiles(tableProfiles);
             setLocalDashboardConfig(dashboardConfig);
+            setLocalWidgets(dashboardConfig.widgets || []);
 
             setSelectedLocalScans(new Set(scans.map(s => s.id)));
             setSelectedLocalExportProfiles(new Set(exportProfiles.map(p => p.id)));
             setSelectedLocalTableProfiles(new Set(tableProfiles.map(p => p.id)));
             setSelectedLocalSettings(new Set(SETTINGS_CATEGORIES.map(c => c.id)));
-            setSelectedLocalDashboard(true);
+            setSelectedLocalWidgets(new Set((dashboardConfig.widgets || []).map(w => w.id)));
         }
     }, [mode]);
 
@@ -75,8 +91,8 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
             payload.settings = exportSettingsByCategory(Array.from(selectedLocalSettings));
         }
         
-        if (selectedLocalDashboard && localDashboardConfig) {
-            payload.dashboardConfig = localDashboardConfig;
+        if (selectedLocalWidgets.size > 0 && localDashboardConfig) {
+            payload.widgets = localWidgets.filter(w => selectedLocalWidgets.has(w.id));
         }
 
         const dataStr = JSON.stringify(payload, null, 2);
@@ -117,10 +133,10 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                         setSelectedImportSettings(new Set());
                     }
                     
-                    if (parsed.dashboardConfig) {
-                        setSelectedImportDashboard(true);
+                    if (parsed.widgets && Array.isArray(parsed.widgets)) {
+                        setSelectedImportWidgets(new Set(parsed.widgets.map((w: any) => w.id)));
                     } else {
-                        setSelectedImportDashboard(false);
+                        setSelectedImportWidgets(new Set());
                     }
 
                     setImportError(null);
@@ -142,7 +158,38 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
         }
     };
 
-    const handleImport = () => {
+    const handleImportClick = () => {
+        if (!importedData) return;
+
+        const existingScanIds = new Set(getHistory().map(s => s.id));
+        const existingExportIds = new Set(getExportProfiles().map(p => p.id));
+        const existingTableIds = new Set(getTableProfiles().map(p => p.id));
+        const existingWidgetIds = new Set((getDashboardConfig().widgets || []).map(w => w.id));
+
+        const conflictingScans = importedData.scans.filter(s => selectedImportScans.has(s.id) && existingScanIds.has(s.id));
+        const conflictingExportProfiles = importedData.exportProfiles.filter(p => selectedImportExportProfiles.has(p.id) && existingExportIds.has(p.id));
+        const conflictingTableProfiles = importedData.tableProfiles.filter(p => selectedImportTableProfiles.has(p.id) && existingTableIds.has(p.id));
+        const conflictingWidgets = (importedData.widgets || []).filter(w => selectedImportWidgets.has(w.id) && existingWidgetIds.has(w.id));
+
+        const totalConflicts = conflictingScans.length + conflictingExportProfiles.length + conflictingTableProfiles.length + conflictingWidgets.length;
+
+        if (totalConflicts > 0) {
+            setConflictDialog({ 
+                isOpen: true, 
+                details: {
+                    scans: conflictingScans.map(s => s.name),
+                    exportProfiles: conflictingExportProfiles.map(p => p.name),
+                    tableProfiles: conflictingTableProfiles.map(p => p.name),
+                    widgets: conflictingWidgets.map(w => w.title)
+                }
+            });
+        } else {
+            handleImport('skip');
+        }
+    };
+
+    const handleImport = (resolution: 'skip' | 'overwrite' | 'rename') => {
+        setConflictDialog({ isOpen: false, details: { scans: [], exportProfiles: [], tableProfiles: [], widgets: [] } });
         if (!importedData) return;
 
         try {
@@ -151,7 +198,8 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                 selectedImportScans,
                 selectedImportExportProfiles,
                 selectedImportTableProfiles,
-                selectedImportDashboard
+                selectedImportWidgets,
+                resolution
             );
             
             if (importedData.settings && selectedImportSettings.size > 0) {
@@ -164,7 +212,7 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                 setStatus("");
                 setMode('select');
                 // Reload to apply settings immediately
-                if (selectedImportSettings.size > 0 || selectedImportDashboard) {
+                if (selectedImportSettings.size > 0 || selectedImportWidgets.size > 0) {
                     window.location.reload();
                 }
             }, 2000);
@@ -181,8 +229,8 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
         setter(newSet);
     };
 
-    const totalLocalSelected = selectedLocalScans.size + selectedLocalExportProfiles.size + selectedLocalTableProfiles.size + selectedLocalSettings.size + (selectedLocalDashboard ? 1 : 0);
-    const totalImportSelected = selectedImportScans.size + selectedImportExportProfiles.size + selectedImportTableProfiles.size + selectedImportSettings.size + (selectedImportDashboard ? 1 : 0);
+    const totalLocalSelected = selectedLocalScans.size + selectedLocalExportProfiles.size + selectedLocalTableProfiles.size + selectedLocalSettings.size + selectedLocalWidgets.size;
+    const totalImportSelected = selectedImportScans.size + selectedImportExportProfiles.size + selectedImportTableProfiles.size + selectedImportSettings.size + selectedImportWidgets.size;
 
     return (
         <div className="p-4 max-w-2xl mx-auto animate-fade-in">
@@ -292,33 +340,19 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                                     isExpanded={expandedSection === 'localSettings'} 
                                     onToggleExpand={() => setExpandedSection(expandedSection === 'localSettings' ? null : 'localSettings')} 
                                 />
-                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                                    <div 
-                                        className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                        onClick={() => setSelectedLocalDashboard(!selectedLocalDashboard)}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
-                                                <LayoutDashboard className="w-5 h-5 text-teal-500" />
-                                            </div>
-                                            <div className="text-left">
-                                                <h3 className="font-semibold text-slate-900 dark:text-white">Dashboard Widgets & Layout</h3>
-                                                <p className="text-sm text-slate-500">Include your custom dashboard configuration</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={selectedLocalDashboard}
-                                                onChange={(e) => {
-                                                    e.stopPropagation();
-                                                    setSelectedLocalDashboard(e.target.checked);
-                                                }}
-                                                className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
+                                <ExpandableList 
+                                    title="Dashboard Widgets" 
+                                    icon={<LayoutDashboard className="w-5 h-5 text-teal-500" />} 
+                                    items={localWidgets} 
+                                    selectedIds={selectedLocalWidgets} 
+                                    onToggle={(id) => toggleSet(selectedLocalWidgets, id, setSelectedLocalWidgets)} 
+                                    onSelectAll={() => setSelectedLocalWidgets(new Set(localWidgets.map(w => w.id)))} 
+                                    onDeselectAll={() => setSelectedLocalWidgets(new Set())} 
+                                    renderItem={(w) => w.title} 
+                                    getId={(w) => w.id} 
+                                    isExpanded={expandedSection === 'localWidgets'} 
+                                    onToggleExpand={() => setExpandedSection(expandedSection === 'localWidgets' ? null : 'localWidgets')} 
+                                />
                             </div>
 
                             <button 
@@ -411,34 +445,20 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                                                 onToggleExpand={() => setExpandedSection(expandedSection === 'importSettings' ? null : 'importSettings')} 
                                             />
                                         )}
-                                        {importedData.dashboardConfig && (
-                                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                                                <div 
-                                                    className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                                    onClick={() => setSelectedImportDashboard(!selectedImportDashboard)}
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm">
-                                                            <LayoutDashboard className="w-5 h-5 text-teal-500" />
-                                                        </div>
-                                                        <div className="text-left">
-                                                            <h3 className="font-semibold text-slate-900 dark:text-white">Dashboard Widgets & Layout</h3>
-                                                            <p className="text-sm text-slate-500">Import custom dashboard configuration</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            checked={selectedImportDashboard}
-                                                            onChange={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedImportDashboard(e.target.checked);
-                                                            }}
-                                                            className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        {importedData.widgets && importedData.widgets.length > 0 && (
+                                            <ExpandableList 
+                                                title="Dashboard Widgets to import" 
+                                                icon={<LayoutDashboard className="w-5 h-5 text-teal-500" />} 
+                                                items={importedData.widgets} 
+                                                selectedIds={selectedImportWidgets} 
+                                                onToggle={(id) => toggleSet(selectedImportWidgets, id, setSelectedImportWidgets)} 
+                                                onSelectAll={() => setSelectedImportWidgets(new Set(importedData.widgets!.map(w => w.id)))} 
+                                                onDeselectAll={() => setSelectedImportWidgets(new Set())} 
+                                                renderItem={(w) => w.title} 
+                                                getId={(w) => w.id} 
+                                                isExpanded={expandedSection === 'importWidgets'} 
+                                                onToggleExpand={() => setExpandedSection(expandedSection === 'importWidgets' ? null : 'importWidgets')} 
+                                            />
                                         )}
                                     </div>
 
@@ -450,7 +470,7 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                                             Cancel
                                         </button>
                                         <button 
-                                            onClick={handleImport}
+                                            onClick={handleImportClick}
                                             disabled={totalImportSelected === 0}
                                             className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
                                         >
@@ -464,6 +484,104 @@ export default function ManualDataTransfer({ onClose }: ManualDataTransferProps)
                     )}
                 </div>
             </div>
+
+            {/* Conflict Resolution Dialog */}
+            {conflictDialog.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-slide-up border border-slate-200 dark:border-slate-800">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-amber-50 dark:bg-amber-900/20">
+                            <h3 className="text-xl font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                                <AlertCircle className="w-6 h-6" />
+                                Data Conflict Detected
+                            </h3>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-slate-600 dark:text-slate-300 mb-6">
+                                {conflictDialog.details.scans.length + conflictDialog.details.exportProfiles.length + conflictDialog.details.tableProfiles.length + conflictDialog.details.widgets.length} item(s) you selected already exist on this device. How would you like to handle this?
+                            </p>
+                            
+                            <div className="mb-6 max-h-48 overflow-y-auto pr-2 space-y-4">
+                                {conflictDialog.details.scans.length > 0 && (
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                                            <Database className="w-4 h-4 text-blue-500" />
+                                            Scans ({conflictDialog.details.scans.length})
+                                        </h4>
+                                        <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                                            {conflictDialog.details.scans.map((name, i) => <li key={i}>{name}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                                {conflictDialog.details.exportProfiles.length > 0 && (
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                                            <FileSpreadsheet className="w-4 h-4 text-green-500" />
+                                            Export Profiles ({conflictDialog.details.exportProfiles.length})
+                                        </h4>
+                                        <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                                            {conflictDialog.details.exportProfiles.map((name, i) => <li key={i}>{name}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                                {conflictDialog.details.tableProfiles.length > 0 && (
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                                            <LayoutTemplate className="w-4 h-4 text-purple-500" />
+                                            Table Profiles ({conflictDialog.details.tableProfiles.length})
+                                        </h4>
+                                        <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                                            {conflictDialog.details.tableProfiles.map((name, i) => <li key={i}>{name}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                                {conflictDialog.details.widgets.length > 0 && (
+                                    <div>
+                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                                            <LayoutDashboard className="w-4 h-4 text-teal-500" />
+                                            Widgets ({conflictDialog.details.widgets.length})
+                                        </h4>
+                                        <ul className="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                                            {conflictDialog.details.widgets.map((name, i) => <li key={i}>{name}</li>)}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => handleImport('skip')}
+                                    className="w-full p-4 text-left border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    <div className="font-bold text-slate-900 dark:text-white">Skip Existing</div>
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">Only import new items. Existing items will not be modified.</div>
+                                </button>
+                                <button
+                                    onClick={() => handleImport('rename')}
+                                    className="w-full p-4 text-left border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    <div className="font-bold text-slate-900 dark:text-white">Import as Copies</div>
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">Keep both versions. Imported items will be renamed with "(Copy)".</div>
+                                </button>
+                                <button
+                                    onClick={() => handleImport('overwrite')}
+                                    className="w-full p-4 text-left border border-red-200 dark:border-red-900/50 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                >
+                                    <div className="font-bold text-red-600 dark:text-red-400">Overwrite Existing</div>
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">Replace local items with the imported versions. This cannot be undone.</div>
+                                </button>
+                            </div>
+                            <div className="mt-6 flex justify-end">
+                                <button
+                                    onClick={() => setConflictDialog({ isOpen: false, details: { scans: [], exportProfiles: [], tableProfiles: [], widgets: [] } })}
+                                    className="px-6 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

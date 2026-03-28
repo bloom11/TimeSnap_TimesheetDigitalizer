@@ -4,37 +4,32 @@ import { TimeEntry, ColumnConfig, ConditionalRule } from "../types";
 export type FormulaResult = string;
 type OutputFormat = "NUMBER" | "STRING" | "TIME";
 
-function checkConditionalRules(row: TimeEntry, rules: ConditionalRule[], allConfigs: ColumnConfig[]): boolean {
-  if (!rules || rules.length === 0) return false; // If no rules, we don't apply the conditional value
+function checkConditionalRules(row: TimeEntry, config: ColumnConfig, allConfigs: ColumnConfig[]): boolean {
+  const chain = config.conditionChain;
+  const rules = config.conditionalRules;
+
+  if (chain && chain.length > 0) {
+    let result = false;
+    for (let i = 0; i < chain.length; i++) {
+      const link = chain[i];
+      const ruleResult = evaluateRule(row, link.rule, allConfigs);
+      
+      if (i === 0) {
+        result = ruleResult;
+      } else {
+        const op = chain[i - 1].nextOperator || 'AND';
+        if (op === 'AND') result = result && ruleResult;
+        else if (op === 'OR') result = result || ruleResult;
+        else if (op === 'XOR') result = (result && !ruleResult) || (!result && ruleResult);
+      }
+    }
+    return result;
+  }
+
+  if (!rules || rules.length === 0) return false;
 
   for (const rule of rules) {
-    const val = (row[rule.columnKey] as string) || "";
-    const sep = getColumnSeparator(rule.columnKey, allConfigs, ":");
-    const num = parseCellValue(val, sep);
-
-    switch (rule.operator) {
-      case "is_empty":
-        if (val.trim()) return false;
-        break;
-      case "not_empty":
-        if (!val.trim()) return false;
-        break;
-      case "not_zero":
-        if (!Number.isFinite(num) || num === 0) return false;
-        break;
-      case "equals_zero":
-        if (!Number.isFinite(num) || num !== 0) return false;
-        break;
-      case "greater_than_zero":
-        if (!Number.isFinite(num) || num <= 0) return false;
-        break;
-      case "less_than_zero":
-        if (!Number.isFinite(num) || num >= 0) return false;
-        break;
-      case "equals":
-        if (val.trim() !== (rule.value || "").trim()) return false;
-        break;
-    }
+    if (!evaluateRule(row, rule, allConfigs)) return false;
   }
   return true;
 }
@@ -307,17 +302,18 @@ export function calculateValue(
 
   if (formula === "none") {
     // Check conditional rules for manual columns too
-    if (config.conditionalRules && config.conditionalRules.length > 0 && config.conditionalValue !== undefined) {
-      if (checkConditionalRules(row, config.conditionalRules, allConfigs)) {
+    if (((config.conditionChain && config.conditionChain.length > 0) || (config.conditionalRules && config.conditionalRules.length > 0)) && config.conditionalValue !== undefined) {
+      if (checkConditionalRules(row, config, allConfigs)) {
         return config.conditionalValue;
       }
     }
-    return (row[config.key] as string) || "";
+    const val = row[config.key];
+    return val !== undefined && val !== null ? String(val) : "";
   }
 
   // Apply conditional rules if present
-  if (config.conditionalRules && config.conditionalRules.length > 0 && config.conditionalValue !== undefined) {
-    if (checkConditionalRules(row, config.conditionalRules, allConfigs)) {
+  if (((config.conditionChain && config.conditionChain.length > 0) || (config.conditionalRules && config.conditionalRules.length > 0)) && config.conditionalValue !== undefined) {
+    if (checkConditionalRules(row, config, allConfigs)) {
       return config.conditionalValue;
     }
   }
@@ -572,9 +568,7 @@ export function applyFormulas(
 
     // Use newRow while filling, so later formulas can read earlier computed columns in same row if needed
     for (const cfg of configs) {
-      if (cfg.formula !== "none") {
-        newRow[cfg.key] = calculateValue(newRow, cfg, i, prevRow, constants, configs, data);
-      }
+      newRow[cfg.key] = calculateValue(newRow, cfg, i, prevRow, constants, configs, data);
     }
 
     out.push(newRow);
