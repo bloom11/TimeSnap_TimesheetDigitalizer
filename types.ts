@@ -105,6 +105,12 @@ export interface AppSettings {
   aiSystemPrompt: string; 
   aiOutputSchema: string; 
   aiMappingPrompt: string; 
+  googleDriveSyncEnabled: boolean;
+  googleClientId: string;
+  googleClientSecret: string;
+  lastCloudSyncTimestamp: number;
+  lastLocalChangeTimestamp: number;
+  autoFillMonthBoundaries: boolean;
 }
 
 export interface ScanResult {
@@ -141,7 +147,8 @@ export interface SyncSettingsPayload {
     appearance?: { theme: 'light' | 'dark' | 'system' };
     aiConfig?: { activeProvider: AIProvider; activeModel: string; debugMode: boolean };
     prompts?: { aiSystemPrompt: string; aiMappingPrompt: string; aiOutputSchema: string };
-    general?: { defaultYear: string };
+    general?: { defaultYear: string; autoFillMonthBoundaries: boolean };
+    lastCloudSyncTimestamp?: number;
 }
 
 export interface SyncDataPayload {
@@ -151,6 +158,7 @@ export interface SyncDataPayload {
   settings?: SyncSettingsPayload;
   dashboardConfig?: DashboardConfig;
   widgets?: WidgetConfig[];
+  lastCloudSyncTimestamp?: number;
 }
 
 export interface PeerMessage {
@@ -163,6 +171,9 @@ export interface PeerLog {
   level: 'info' | 'warn' | 'error' | 'success';
   message: string;
 }
+
+export type ConflictResolutionChoice = 'skip' | 'overwrite' | 'rename';
+export type ConflictResolutionMap = Record<string, ConflictResolutionChoice>;
 
 export interface SyncState {
   isHost: boolean;
@@ -179,7 +190,7 @@ export type TimeFilter = 'all' | 'this_week' | 'last_week' | 'this_month' | 'cus
 
 export interface ConditionalRule {
   columnKey: string;
-  operator: 'is_empty' | 'not_empty' | 'not_zero' | 'equals_zero' | 'greater_than_zero' | 'less_than_zero' | 'equals';
+  operator: 'is_empty' | 'not_empty' | 'not_zero' | 'equals_zero' | 'greater_than_zero' | 'less_than_zero' | 'equals' | 'not_equals' | 'greater_than' | 'less_than' | 'greater_than_or_equal' | 'less_than_or_equal';
   value?: string;
 }
 
@@ -216,4 +227,12 @@ export interface WidgetConfig {
 export interface DashboardConfig {
   widgets: WidgetConfig[];
   isDefaultHome: boolean; // Toggle between standard Home and Custom Dashboard
+}
+
+export interface DriveFileMetadata {
+  id: string;
+  name: string;
+  size?: string;
+  modifiedTime?: string;
+  mimeType?: string;
 }

@@ -171,6 +171,8 @@ function evaluateRule(entry: TimeEntry, rule: ConditionalRule, allConfigs: Colum
   const sep = getColumnSeparator(columnKey, allConfigs, ":");
   const valStr = String(entry[columnKey] || "").trim();
   const numVal = parseCellValue(valStr, sep);
+  const compareValue = (value || "").trim();
+  const numCompareValue = parseCellValue(compareValue, sep);
   
   switch (ruleOperator) {
     case 'is_empty': return valStr === "";
@@ -179,7 +181,24 @@ function evaluateRule(entry: TimeEntry, rule: ConditionalRule, allConfigs: Colum
     case 'equals_zero': return !isNaN(numVal) && numVal === 0;
     case 'greater_than_zero': return !isNaN(numVal) && numVal > 0;
     case 'less_than_zero': return !isNaN(numVal) && numVal < 0;
-    case 'equals': return valStr === (value || "").trim();
+    case 'equals': 
+      if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal === numCompareValue;
+      return valStr === compareValue;
+    case 'not_equals':
+      if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal !== numCompareValue;
+      return valStr !== compareValue;
+    case 'greater_than':
+      if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal > numCompareValue;
+      return valStr > compareValue;
+    case 'less_than':
+      if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal < numCompareValue;
+      return valStr < compareValue;
+    case 'greater_than_or_equal':
+      if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal >= numCompareValue;
+      return valStr >= compareValue;
+    case 'less_than_or_equal':
+      if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal <= numCompareValue;
+      return valStr <= compareValue;
     default: return true;
   }
 }
@@ -189,11 +208,16 @@ function evaluateRule(entry: TimeEntry, rule: ConditionalRule, allConfigs: Colum
  */
 function parseConditionString(condition: string): ConditionalRule | null {
   // Robust parser for "[col] = 'val'" or "[col] is_empty"
-  const match = condition.match(/\[([^\]]+)\]\s*(=|is_empty|not_empty|not_zero|equals_zero|greater_than_zero|less_than_zero|equals)(?:\s*['"]?([^'"]+)['"]?)?/i);
+  const match = condition.match(/\[([^\]]+)\]\s*(=|!=|<>|>|<|>=|<=|is_empty|not_empty|not_zero|equals_zero|greater_than_zero|less_than_zero|equals|not_equals|greater_than|less_than|greater_than_or_equal|less_than_or_equal)(?:\s*['"]?([^'"]+)['"]?)?/i);
   if (!match) return null;
   
-  let operator = match[2];
+  let operator = match[2].toLowerCase();
   if (operator === '=') operator = 'equals';
+  if (operator === '!=' || operator === '<>') operator = 'not_equals';
+  if (operator === '>') operator = 'greater_than';
+  if (operator === '<') operator = 'less_than';
+  if (operator === '>=') operator = 'greater_than_or_equal';
+  if (operator === '<=') operator = 'less_than_or_equal';
   
   return {
     columnKey: match[1],

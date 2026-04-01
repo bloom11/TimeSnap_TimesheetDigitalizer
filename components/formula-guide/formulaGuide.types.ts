@@ -7,13 +7,18 @@ export type FormulaGuideExample = {
   requires?: string[];
 };
 
+export interface FormulaGuideContentObject {
+  [key: string]: FormulaGuideContentValue;
+}
+export interface FormulaGuideContentArray extends Array<FormulaGuideContentValue> {}
+
 export type FormulaGuideContentValue =
   | string
   | number
   | boolean
   | null
-  | FormulaGuideContentValue[]
-  | Record<string, FormulaGuideContentValue>;
+  | FormulaGuideContentArray
+  | FormulaGuideContentObject;
 
 export type FormulaGuideNode = {
   id: string;

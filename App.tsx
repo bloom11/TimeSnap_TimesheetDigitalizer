@@ -17,12 +17,14 @@ import SettingsView, { SettingsViewHandle } from "./components/SettingsView";
 import HistoryList from "./components/HistoryList";
 import SyncPairing from "./components/SyncPairing";
 import DataSyncManager from "./components/DataSyncManager";
+import GoogleDriveSyncManager from "./components/GoogleDriveSyncManager";
 import ManualDataTransfer from "./components/ManualDataTransfer";
 import DashboardView from "./components/DashboardView";
 import { getDashboardConfig } from "./services/storageService";
 import DebugConsole from "./components/DebugConsole";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { UpdatePrompt } from "./components/UpdatePrompt";
+import { SyncStatusToast } from "./components/SyncStatusToast";
 
 type Overlay = "settings" | "history" | null;
 
@@ -601,6 +603,8 @@ export default function App() {
       </main>
 
       {syncService && appState !== AppState.DATA_SYNC_HOST && appState !== AppState.DATA_SYNC_CLIENT && (<SyncHandlerBridge service={syncService} onData={onSyncDataReceived} onStatus={onSyncStatusChange} />)}
+      <GoogleDriveSyncManager />
+      <SyncStatusToast />
       {settings.debugMode && <DebugConsole />}
       <InstallPrompt />
       <UpdatePrompt />

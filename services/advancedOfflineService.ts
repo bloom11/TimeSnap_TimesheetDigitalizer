@@ -33,7 +33,7 @@ const runTesseractCell = async (image: string, mode: 'line' | 'word' = 'word'): 
     const res = await Tesseract.recognize(image, 'eng', {
         tessedit_char_whitelist: whitelist,
         tessedit_pageseg_mode: psm
-    });
+    } as any);
     return res.data.text.trim();
 };
 

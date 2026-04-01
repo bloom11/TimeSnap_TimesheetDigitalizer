@@ -76,7 +76,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   defaultYear: new Date().getFullYear().toString(),
   aiSystemPrompt: DEFAULT_PROMPT,
   aiOutputSchema: DEFAULT_SCHEMA,
-  aiMappingPrompt: DEFAULT_MAPPING_PROMPT
+  aiMappingPrompt: DEFAULT_MAPPING_PROMPT,
+  googleDriveSyncEnabled: false,
+  googleClientId: "",
+  googleClientSecret: "",
+  lastCloudSyncTimestamp: 0,
+  lastLocalChangeTimestamp: 0,
+  autoFillMonthBoundaries: true
 };
 
 export const VALID_MODELS: Record<string, string[]> = {
@@ -167,6 +173,9 @@ export const getSettings = (): AppSettings => {
     const groqKey = decrypt(parsed.groqApiKey || "");
     const qwenKey = decrypt(parsed.qwenApiKey || "");
     const openrouterKey = decrypt(parsed.openrouterApiKey || "");
+    const googleClientId = decrypt(parsed.googleClientId || "");
+    const googleClientSecret = decrypt(parsed.googleClientSecret || "");
+    const lastLocalChangeTimestamp = parsed.lastLocalChangeTimestamp || 0;
 
     // ✅ Added: sanitize provider+model so they always match
     const { provider, model } = sanitizeProviderAndModel(parsed.activeProvider, parsed.activeModel);
@@ -181,6 +190,10 @@ export const getSettings = (): AppSettings => {
         groqApiKey: groqKey,
         qwenApiKey: qwenKey,
         openrouterApiKey: openrouterKey,
+        googleClientId: googleClientId,
+        googleClientSecret: googleClientSecret,
+        lastLocalChangeTimestamp: lastLocalChangeTimestamp,
+        autoFillMonthBoundaries: parsed.autoFillMonthBoundaries !== undefined ? parsed.autoFillMonthBoundaries : true,
         activeProvider: provider,
         activeModel: model,
         aiSystemPrompt: parsed.aiSystemPrompt || DEFAULT_PROMPT,
@@ -226,7 +239,9 @@ export const saveSettings = (settings: AppSettings) => {
           mistralApiKey: encrypt(settings.mistralApiKey),
           groqApiKey: encrypt(settings.groqApiKey),
           qwenApiKey: encrypt(settings.qwenApiKey),
-          openrouterApiKey: encrypt(settings.openrouterApiKey)
+          openrouterApiKey: encrypt(settings.openrouterApiKey),
+          googleClientId: encrypt(settings.googleClientId || ""),
+          googleClientSecret: encrypt(settings.googleClientSecret || "")
       };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(toSave));
       applyTheme();
@@ -267,7 +282,10 @@ export const exportSettingsByCategory = (categories: string[]): SyncSettingsPayl
         };
     }
     if (categories.includes('general')) {
-        payload.general = { defaultYear: current.defaultYear };
+        payload.general = { 
+            defaultYear: current.defaultYear,
+            autoFillMonthBoundaries: current.autoFillMonthBoundaries
+        };
     }
 
     return payload;

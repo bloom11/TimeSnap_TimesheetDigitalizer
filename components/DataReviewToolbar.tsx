@@ -9,6 +9,7 @@ import {
   ListOrdered,
   Plus,
   LayoutTemplate,
+  Wand2,
 } from "lucide-react";
 
 interface DataReviewToolbarProps {
@@ -20,6 +21,7 @@ interface DataReviewToolbarProps {
   onAddColumn: () => void;
   onReorderColumns: () => void;
   onAddRow: () => void;
+  onOpenAutoOptions: () => void;
   isVertical?: boolean;
 }
 
@@ -32,6 +34,7 @@ export default function DataReviewToolbar({
   onAddColumn,
   onReorderColumns,
   onAddRow,
+  onOpenAutoOptions,
   isVertical = false,
 }: DataReviewToolbarProps) {
   const containerClass = isVertical
@@ -97,6 +100,13 @@ export default function DataReviewToolbar({
           className={`${buttonClass} flex items-center px-3 py-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 text-sm font-medium border border-green-200 dark:border-green-800 transition-colors`}
         >
           <Plus className="w-4 h-4 mr-2" /> Add Row
+        </button>
+
+        <button
+          onClick={onOpenAutoOptions}
+          className={`${buttonClass} flex items-center px-3 py-2 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/50 text-sm font-medium border border-amber-200 dark:border-amber-800 transition-colors`}
+        >
+          <Wand2 className="w-4 h-4 mr-2" /> Auto Options
         </button>
       </div>
     </div>

@@ -529,12 +529,17 @@ export default function ColumnConfigModal({
                       <option value="is_empty">Is Empty</option>
                       <option value="not_empty">Is Not Empty</option>
                       <option value="equals">Equals</option>
+                      <option value="not_equals">Not Equals</option>
+                      <option value="greater_than">Greater Than</option>
+                      <option value="less_than">Less Than</option>
+                      <option value="greater_than_or_equal">Greater or Equal</option>
+                      <option value="less_than_or_equal">Less or Equal</option>
                       <option value="not_zero">Is Not Zero</option>
                       <option value="equals_zero">Equals 0</option>
                       <option value="greater_than_zero">Greater Than 0</option>
                       <option value="less_than_zero">Less Than 0</option>
                     </select>
-                    {item.rule.operator === 'equals' && (
+                    {['equals', 'not_equals', 'greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal'].includes(item.rule.operator) && (
                       <input
                         type="text"
                         value={item.rule.value || ""}

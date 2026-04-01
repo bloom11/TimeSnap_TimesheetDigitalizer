@@ -14,6 +14,9 @@ import DataReviewTable from "./DataReviewTable";
 import { useDataReviewLogic } from "./useDataReviewLogic";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import DraggableMenu from "./DraggableMenu";
+import { autoFillWeekends, removeEmptyWeekends } from "../utils/autoFillLogic";
+import AutoOptionsModal from "./AutoOptionsModal";
+import { getSettings, saveSettings } from "../services/settingsService";
 
 interface DataReviewProps {
   data: TimeEntry[];
@@ -127,6 +130,24 @@ const DataReview: React.FC<DataReviewProps> = ({
   const isLandscape = useMediaQuery("(orientation: landscape) and (max-height: 600px)");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isDraggableMode, setIsDraggableMode] = useState(false);
+  const [showAutoOptionsModal, setShowAutoOptionsModal] = useState(false);
+  const [includeBoundaries, setIncludeBoundaries] = useState(() => getSettings().autoFillMonthBoundaries);
+
+  const handleIncludeBoundariesChange = (val: boolean) => {
+    setIncludeBoundaries(val);
+    const settings = getSettings();
+    saveSettings({ ...settings, autoFillMonthBoundaries: val });
+  };
+
+  const handleAutoFillWeekends = (boundaries: boolean) => {
+    const newData = autoFillWeekends(data, boundaries);
+    onUpdate(newData, configs, columnOrder, constants);
+  };
+
+  const handleRemoveEmptyWeekends = () => {
+    const newData = removeEmptyWeekends(data, configs);
+    onUpdate(newData, configs, columnOrder, constants);
+  };
 
   const headerPortalTarget = document.getElementById("header-actions-portal");
 
@@ -156,6 +177,16 @@ const DataReview: React.FC<DataReviewProps> = ({
         onUpdateConstants={onUpdateConstants}
       />
 
+      {/* Auto Options Modal */}
+      <AutoOptionsModal
+        open={showAutoOptionsModal}
+        onClose={() => setShowAutoOptionsModal(false)}
+        onAutoFillWeekends={handleAutoFillWeekends}
+        onRemoveEmptyWeekends={handleRemoveEmptyWeekends}
+        includeBoundaries={includeBoundaries}
+        onIncludeBoundariesChange={handleIncludeBoundariesChange}
+      />
+
       {/* Top bar */}
       {!isLandscape && (
         <DataReviewToolbar
@@ -167,6 +198,7 @@ const DataReview: React.FC<DataReviewProps> = ({
           onAddColumn={openAddColumn}
           onReorderColumns={() => setShowReorderModal(true)}
           onAddRow={handleAddRow}
+          onOpenAutoOptions={() => setShowAutoOptionsModal(true)}
         />
       )}
 
@@ -235,6 +267,7 @@ const DataReview: React.FC<DataReviewProps> = ({
                 onAddColumn={() => { openAddColumn(); setIsDrawerOpen(false); }}
                 onReorderColumns={() => { setShowReorderModal(true); setIsDrawerOpen(false); }}
                 onAddRow={() => { handleAddRow(); setIsDrawerOpen(false); }}
+                onOpenAutoOptions={() => { setShowAutoOptionsModal(true); setIsDrawerOpen(false); }}
                 isVertical
               />
             </div>
@@ -257,6 +290,7 @@ const DataReview: React.FC<DataReviewProps> = ({
             onAddColumn={openAddColumn}
             onReorderColumns={() => setShowReorderModal(true)}
             onAddRow={handleAddRow}
+            onOpenAutoOptions={() => setShowAutoOptionsModal(true)}
             isVertical
           />
         </DraggableMenu>

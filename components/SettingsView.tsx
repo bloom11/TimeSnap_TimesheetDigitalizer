@@ -1,9 +1,13 @@
 
 import React, { useState, forwardRef, useImperativeHandle, useEffect } from 'react';
-import { Save, Bug, Brain, Calendar, RotateCcw, Code2, AlertTriangle, Key, Cpu, Sparkles, MessageSquare, Wind, CheckCircle2, XCircle, Loader2, Moon, Sun, Monitor, TableProperties, ChevronDown, Globe, Network, Zap, Info } from 'lucide-react';
+import { Save, Bug, Brain, Calendar, RotateCcw, Code2, AlertTriangle, Key, Cpu, Sparkles, MessageSquare, Wind, CheckCircle2, XCircle, Loader2, Moon, Sun, Monitor, TableProperties, ChevronDown, Globe, Network, Zap, Info, RefreshCw, Terminal } from 'lucide-react';
 import { AppSettings, AIProvider } from '../types';
 import { getSettings, saveSettings, resetSettings } from '../services/settingsService';
 import { verifyApiKey } from '../services/aiService';
+import { GoogleDriveSyncModal } from './GoogleDriveSyncModal';
+import { downloadFromDrive, uploadToDrive } from '../services/googleDriveService';
+import { importSyncData, getHistory, getExportProfiles, getTableProfiles, getDashboardConfig } from '../services/storageService';
+import { CloudConflictResolver } from './CloudConflictResolver';
 
 export interface SettingsViewHandle {
     attemptClose: (callback: () => void) => void;
@@ -98,7 +102,7 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
 
   // Fetch dynamic app version and official URL from config.json
   useEffect(() => {
-      const configUrl = import.meta.env.BASE_URL + 'config.json';
+      const configUrl = (import.meta as any).env.BASE_URL + 'config.json';
       fetch(configUrl + '?t=' + new Date().getTime())
           .catch(() => fetch(configUrl))
           .then(res => res.json())
@@ -116,6 +120,161 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
   const [verifyResult, setVerifyResult] = useState<Record<string, 'success' | 'error' | null>>({});
   const [confirmReset, setConfirmReset] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [conflictData, setConflictData] = useState<any>(null);
+
+  const handleResolveConflict = async (resolutions: any, settingsResolution: 'skip' | 'overwrite') => {
+      if (!conflictData) return;
+      
+      console.log('[Sync Debug] User resolving conflict with resolutions:', resolutions, 'settingsResolution:', settingsResolution);
+
+      try {
+          setIsManualSyncing(true);
+          importSyncData(
+              conflictData,
+              new Set(conflictData.scans.map((s: any) => s.id)),
+              new Set(conflictData.exportProfiles.map((p: any) => p.id)),
+              new Set(conflictData.tableProfiles.map((p: any) => p.id)),
+              new Set((conflictData.widgets || conflictData.dashboardConfig?.widgets || []).map((w: any) => w.id)),
+              'skip',
+              resolutions
+          );
+
+          if (settingsResolution === 'overwrite' && conflictData.settings) {
+              saveSettings({
+                  ...getSettings(),
+                  ...conflictData.settings,
+                  lastCloudSyncTimestamp: getSettings().lastCloudSyncTimestamp
+              });
+          }
+
+          const syncNow = Date.now();
+          await uploadToDrive(settings.googleClientId, false, false, syncNow);
+          
+          const newSettings = {
+              ...getSettings(),
+              lastCloudSyncTimestamp: syncNow
+          };
+          saveSettings(newSettings);
+          setSettings(newSettings);
+          setInitialSettings(newSettings);
+          
+          alert("Conflict resolved and merged state uploaded successfully!");
+          setConflictData(null);
+      } catch (error: any) {
+          console.error("Failed to resolve conflict", error);
+          alert("Failed to resolve conflict: " + (error.message || "Check console"));
+      } finally {
+          setIsManualSyncing(false);
+      }
+  };
+
+  const handleManualSync = async () => {
+      if (!settings.googleClientId) return;
+      try {
+          setIsManualSyncing(true);
+          const remoteData = await downloadFromDrive(settings.googleClientId, false, false);
+          
+          const remoteTimestamp = remoteData?.lastCloudSyncTimestamp || remoteData?.settings?.lastCloudSyncTimestamp || 0;
+          const localLastSync = settings.lastCloudSyncTimestamp || 0;
+          const localLastChange = settings.lastLocalChangeTimestamp || 0;
+
+          console.log('[Sync Debug] Manual sync check started...');
+          console.log(`[Sync Debug] Timestamps - Remote: ${remoteTimestamp}, LocalLastSync: ${localLastSync}, LocalLastChange: ${localLastChange}`);
+
+          const hasRemoteChanges = remoteData && remoteTimestamp > localLastSync;
+          const hasLocalChanges = localLastChange > localLastSync || !remoteData;
+
+          console.log(`[Sync Debug] Flags - hasRemoteChanges: ${hasRemoteChanges}, hasLocalChanges: ${hasLocalChanges}`);
+
+          if (hasRemoteChanges && hasLocalChanges && remoteData) {
+              console.log('[Sync Debug] Both remote and local have changes. Checking for micro-conflicts...');
+              // Check for actual ID overlaps (Micro conflicts)
+              const localScans = getHistory();
+              const localExportProfiles = getExportProfiles();
+              const localTableProfiles = getTableProfiles();
+              const localWidgets = getDashboardConfig().widgets;
+
+              const hasScanConflict = remoteData.scans.some(rs => localScans.some(ls => ls.id === rs.id));
+              const hasExportConflict = remoteData.exportProfiles.some(rp => localExportProfiles.some(lp => lp.id === rp.id));
+              const hasTableConflict = remoteData.tableProfiles.some(rp => localTableProfiles.some(lp => lp.id === rp.id));
+              const remoteWidgets = remoteData.widgets || remoteData.dashboardConfig?.widgets || [];
+              const hasWidgetConflict = remoteWidgets.some(rw => localWidgets.some(lw => lw.id === rw.id));
+              const hasSettingsConflict = !!remoteData.settings;
+
+              console.log('[Sync Debug] Conflict flags:', { hasScanConflict, hasExportConflict, hasTableConflict, hasWidgetConflict, hasSettingsConflict });
+
+              if (hasScanConflict || hasExportConflict || hasTableConflict || hasWidgetConflict || hasSettingsConflict) {
+                  console.log('[Sync Debug] True conflict detected. Triggering conflict resolution UI.');
+                  setConflictData(remoteData);
+                  return; // Wait for user resolution
+              }
+              
+              console.log('[Sync Debug] Independent changes detected with no overlaps. Auto-merging...');
+              // If no actual ID overlaps, we can safely auto-merge (download new, then upload all)
+              importSyncData(
+                  remoteData,
+                  new Set(remoteData.scans.map(s => s.id)),
+                  new Set(remoteData.exportProfiles.map(p => p.id)),
+                  new Set(remoteData.tableProfiles.map(p => p.id)),
+                  new Set(remoteWidgets.map(w => w.id)),
+                  'skip' // Skip is fine since there are no overlaps
+              );
+              const now = Date.now();
+              await uploadToDrive(settings.googleClientId, false, false, now);
+              const newSettings = {
+                  ...getSettings(),
+                  lastCloudSyncTimestamp: now
+              };
+              saveSettings(newSettings);
+              setSettings(newSettings);
+              setInitialSettings(newSettings);
+              alert("Data merged and synced successfully!");
+              setIsManualSyncing(false);
+              return;
+          }
+
+          if (hasRemoteChanges) {
+              importSyncData(
+                  remoteData,
+                  new Set(remoteData.scans.map(s => s.id)),
+                  new Set(remoteData.exportProfiles.map(p => p.id)),
+                  new Set(remoteData.tableProfiles.map(p => p.id)),
+                  new Set(remoteData.widgets?.map(w => w.id) || []),
+                  'overwrite'
+              );
+              const newSettings = {
+                  ...getSettings(),
+                  lastCloudSyncTimestamp: remoteTimestamp
+              };
+              saveSettings(newSettings);
+              setSettings(newSettings);
+              setInitialSettings(newSettings);
+              alert("Newer data found on Google Drive. Downloaded successfully!");
+          } else if (hasLocalChanges) {
+              const now = Date.now();
+              await uploadToDrive(settings.googleClientId, false, false, now);
+              const newSettings = {
+                  ...getSettings(),
+                  lastCloudSyncTimestamp: now
+              };
+              saveSettings(newSettings);
+              setSettings(newSettings);
+              setInitialSettings(newSettings);
+              alert("Local changes uploaded to Google Drive successfully!");
+          } else {
+              alert("Data is already in sync.");
+          }
+      } catch (error: any) {
+          console.error("Manual sync failed", error);
+          alert("Sync failed: " + (error.message || "Check console for details"));
+      } finally {
+          if (!conflictData) {
+              setIsManualSyncing(false);
+          }
+      }
+  };
 
   const toggleKey = (key: string) => {
       setVisibleKeys(prev => ({...prev, [key]: !prev[key]}));
@@ -405,6 +564,79 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
                         <div className="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:bg-blue-600"></div>
                     </label>
                 </div>
+                {settings.debugMode && (
+                    <div className="mt-4 flex justify-end">
+                        <button 
+                            onClick={() => {
+                                import('../services/syncService').then(m => {
+                                    m.SyncService.log('info', 'Debug console opened manually from settings.');
+                                });
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-lg hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors text-sm font-medium"
+                        >
+                            <Terminal className="w-4 h-4" />
+                            Open Debug Console
+                        </button>
+                    </div>
+                )}
+            </section>
+
+            {/* Cloud Storage */}
+            <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg"><Globe className="w-5 h-5 text-blue-600 dark:text-blue-400" /></div>
+                    <h3 className="font-bold text-slate-800 dark:text-white">Cloud Storage</h3>
+                </div>
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 gap-4">
+                        <div className="flex-1">
+                            <h4 className="font-semibold text-slate-800 dark:text-white">Google Drive Sync</h4>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Automatically sync scans and settings to your personal Google Drive.</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={settings.googleDriveSyncEnabled} 
+                                onChange={(e) => setSettings({...settings, googleDriveSyncEnabled: e.target.checked})} 
+                                className="sr-only peer" 
+                            />
+                            <div className="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button 
+                            onClick={() => setShowSyncModal(true)}
+                            className="flex-1 p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                                    <Network className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="block text-sm font-bold text-slate-800 dark:text-white">Configure Sync</span>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Set Client ID and manage connection</span>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button 
+                            onClick={handleManualSync}
+                            disabled={isManualSyncing || !settings.googleClientId}
+                            className="flex-1 p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors group disabled:opacity-50"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                                    {isManualSyncing ? <Loader2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin" /> : <RefreshCw className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                                </div>
+                                <div className="text-left">
+                                    <span className="block text-sm font-bold text-slate-800 dark:text-white">Sync Now</span>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">Force sync with Google Drive</span>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
             </section>
 
             {/* Data Management */}
@@ -475,6 +707,21 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
                 {isSaved ? "Saved!" : <><Save className="w-5 h-5 mr-2" /> Save Changes</>}
             </button>
         </div>
+
+        <GoogleDriveSyncModal 
+            isOpen={showSyncModal} 
+            onClose={() => setShowSyncModal(false)} 
+        />
+
+        <CloudConflictResolver 
+            isOpen={!!conflictData}
+            remoteData={conflictData}
+            onResolve={handleResolveConflict}
+            onCancel={() => {
+                setConflictData(null);
+                setIsManualSyncing(false);
+            }}
+        />
 
         {/* Unsaved Changes Warning Modal */}
         {showUnsavedModal && (

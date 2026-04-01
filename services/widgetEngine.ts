@@ -300,6 +300,8 @@ export function evaluateWidget(
         const sep = getColumnSeparator(columnKey, allConfigs, ":");
         const valStr = String(entry[columnKey] || "").trim();
         const numVal = parseCellValue(valStr, sep);
+        const compareValue = (value || "").trim();
+        const numCompareValue = parseCellValue(compareValue, sep);
         
         switch (ruleOperator) {
           case 'is_empty': return valStr === "";
@@ -308,7 +310,24 @@ export function evaluateWidget(
           case 'equals_zero': return !isNaN(numVal) && numVal === 0;
           case 'greater_than_zero': return !isNaN(numVal) && numVal > 0;
           case 'less_than_zero': return !isNaN(numVal) && numVal < 0;
-          case 'equals': return valStr === (value || "").trim();
+          case 'equals': 
+            if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal === numCompareValue;
+            return valStr === compareValue;
+          case 'not_equals':
+            if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal !== numCompareValue;
+            return valStr !== compareValue;
+          case 'greater_than':
+            if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal > numCompareValue;
+            return valStr > compareValue;
+          case 'less_than':
+            if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal < numCompareValue;
+            return valStr < compareValue;
+          case 'greater_than_or_equal':
+            if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal >= numCompareValue;
+            return valStr >= compareValue;
+          case 'less_than_or_equal':
+            if (!isNaN(numVal) && !isNaN(numCompareValue)) return numVal <= numCompareValue;
+            return valStr <= compareValue;
           default: return true;
         }
       };
@@ -318,7 +337,7 @@ export function evaluateWidget(
       
       for (let i = 0; i < config.conditionChain.length - 1; i++) {
         const nextResult = evaluateRule(config.conditionChain[i + 1].rule);
-        const op = config.conditionChain[i].nextOperator;
+        const op = config.conditionChain[i].nextOperator || 'AND';
         
         if (op === 'AND') result = result && nextResult;
         else if (op === 'OR') result = result || nextResult;

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
+// @ts-ignore
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { RefreshCw, ExternalLink, X } from 'lucide-react';
 
 // IMPORTANT: To make this future-proof, replace this URL with a permanent link 
 // to a raw JSON file (e.g., a GitHub Gist or a dedicated domain) that you will NEVER delete.
 // For now, it points to the local config.json.
-const REMOTE_CONFIG_URL = import.meta.env.BASE_URL + 'config.json';
+const REMOTE_CONFIG_URL = (import.meta as any).env.BASE_URL + 'config.json';
 
 export const UpdatePrompt: React.FC = () => {
   // 1. PWA Update Logic (Standard Updates)

@@ -99,8 +99,8 @@ export default function DataSyncManager({ service, onClose }: DataSyncManagerPro
         };
 
         // Override existing handlers for this component
-        service.setOnDataReceived(handleData);
-        service.setOnStatusChange(handleStatus);
+        service.onDataReceived = handleData;
+        service.onStatusChange = handleStatus;
 
     }, [service]);
 
