@@ -6,6 +6,7 @@ import { performOCR, mapWordsToEntries } from '../services/offlineService';
 import { performPerspectiveWarp } from '../services/imageProcessing';
 import { getSettings, saveSettings } from '../services/settingsService';
 import { TimeEntry, ProcessingStatus, ScanResult, OfflineScanData, Point, AppSettings, AIProvider, OCRAlgorithm } from '../types';
+import { autoSortTimeColumns } from '../utils/timeSorting';
 import ColumnAdjuster from './ColumnAdjuster';
 import CropEditor from './CropEditor';
 import SettingsView from './SettingsView';
@@ -146,7 +147,7 @@ const Scanner: React.FC<ScannerProps> = ({
                     setStatus('error');
                 } else {
                     setStatus('success');
-                    onDataExtracted(result.entries);
+                    onDataExtracted(currentSettings.autoSortScannedTimes ? autoSortTimeColumns(result.entries) : result.entries);
                 }
             }
           } catch (err: any) {
@@ -197,7 +198,7 @@ const Scanner: React.FC<ScannerProps> = ({
           // Note: mapWordsToEntries also uses settings, so we pass current state
           const result = mapWordsToEntries(offlineScanData, columns, settings);
           setOfflineScanData(null);
-          onDataExtracted(result.entries);
+          onDataExtracted(settings.autoSortScannedTimes ? autoSortTimeColumns(result.entries) : result.entries);
       } catch (e) {
           setError("Mapping failed.");
           setStatus('error');
@@ -211,7 +212,7 @@ const Scanner: React.FC<ScannerProps> = ({
           setError("No valid grid data found.");
           setStatus('error');
       } else {
-          onDataExtracted(entries);
+          onDataExtracted(settings.autoSortScannedTimes ? autoSortTimeColumns(entries) : entries);
       }
   };
 

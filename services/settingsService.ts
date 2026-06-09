@@ -82,7 +82,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   googleClientSecret: "",
   lastCloudSyncTimestamp: 0,
   lastLocalChangeTimestamp: 0,
-  autoFillMonthBoundaries: true
+  autoFillMonthBoundaries: true,
+  autoSortScannedTimes: true
 };
 
 export const VALID_MODELS: Record<string, string[]> = {
@@ -133,6 +134,7 @@ const decryptLegacyXor = (text: string): string => {
 
 const encrypt = (text: string): string => {
     if (!text) return "";
+    if (text.startsWith('aes_') || text.startsWith('enc_')) return text; // Prevent double encryption
     try {
         const encrypted = CryptoJS.AES.encrypt(text, SECRET_PASSPHRASE).toString();
         return 'aes_' + encrypted; 
@@ -194,6 +196,7 @@ export const getSettings = (): AppSettings => {
         googleClientSecret: googleClientSecret,
         lastLocalChangeTimestamp: lastLocalChangeTimestamp,
         autoFillMonthBoundaries: parsed.autoFillMonthBoundaries !== undefined ? parsed.autoFillMonthBoundaries : true,
+        autoSortScannedTimes: parsed.autoSortScannedTimes !== undefined ? parsed.autoSortScannedTimes : true,
         activeProvider: provider,
         activeModel: model,
         aiSystemPrompt: parsed.aiSystemPrompt || DEFAULT_PROMPT,
@@ -284,11 +287,66 @@ export const exportSettingsByCategory = (categories: string[]): SyncSettingsPayl
     if (categories.includes('general')) {
         payload.general = { 
             defaultYear: current.defaultYear,
-            autoFillMonthBoundaries: current.autoFillMonthBoundaries
+            autoFillMonthBoundaries: current.autoFillMonthBoundaries,
+            autoSortScannedTimes: current.autoSortScannedTimes
         };
     }
 
     return payload;
+};
+
+export const hasSettingsChanged = (remoteSettings: SyncSettingsPayload | undefined, localSettings: AppSettings): boolean => {
+    if (!remoteSettings) return false;
+    
+    // Check appearance
+    if (remoteSettings.appearance && remoteSettings.appearance.theme !== localSettings.theme) return true;
+    
+    // Check AI config
+    if (remoteSettings.aiConfig) {
+        if (remoteSettings.aiConfig.activeProvider !== localSettings.activeProvider) return true;
+        if (remoteSettings.aiConfig.activeModel !== localSettings.activeModel) return true;
+        if (remoteSettings.aiConfig.debugMode !== localSettings.debugMode) return true;
+    }
+    
+    // Check prompts
+    if (remoteSettings.prompts) {
+        if (remoteSettings.prompts.aiSystemPrompt !== localSettings.aiSystemPrompt) return true;
+        if (remoteSettings.prompts.aiMappingPrompt !== localSettings.aiMappingPrompt) return true;
+        if (remoteSettings.prompts.aiOutputSchema !== localSettings.aiOutputSchema) return true;
+    }
+    
+    // Check general
+    if (remoteSettings.general) {
+        if (remoteSettings.general.defaultYear !== localSettings.defaultYear) return true;
+        if (remoteSettings.general.autoFillMonthBoundaries !== localSettings.autoFillMonthBoundaries) return true;
+        if (remoteSettings.general.autoSortScannedTimes !== localSettings.autoSortScannedTimes) return true;
+    }
+    
+    return false;
+};
+
+export const mergeRemoteSettings = (remoteSettings: SyncSettingsPayload | undefined, localSettings: AppSettings): AppSettings => {
+    if (!remoteSettings) return localSettings;
+    
+    return {
+        ...localSettings,
+        ...(remoteSettings.appearance ? { theme: remoteSettings.appearance.theme } : {}),
+        ...(remoteSettings.aiConfig ? { 
+            activeProvider: remoteSettings.aiConfig.activeProvider,
+            activeModel: remoteSettings.aiConfig.activeModel,
+            debugMode: remoteSettings.aiConfig.debugMode
+        } : {}),
+        ...(remoteSettings.prompts ? {
+            aiSystemPrompt: remoteSettings.prompts.aiSystemPrompt,
+            aiMappingPrompt: remoteSettings.prompts.aiMappingPrompt,
+            aiOutputSchema: remoteSettings.prompts.aiOutputSchema
+        } : {}),
+        ...(remoteSettings.general ? {
+            defaultYear: remoteSettings.general.defaultYear,
+            autoFillMonthBoundaries: remoteSettings.general.autoFillMonthBoundaries,
+            autoSortScannedTimes: remoteSettings.general.autoSortScannedTimes
+        } : {})
+    };
 };
 
 export const applyImportedSettings = (

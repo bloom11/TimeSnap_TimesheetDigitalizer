@@ -1,8 +1,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { getSettings, saveSettings } from '../services/settingsService';
+import { getSettings, saveSettings, hasSettingsChanged, mergeRemoteSettings } from '../services/settingsService';
 import { uploadToDrive, downloadFromDrive } from '../services/googleDriveService';
-import { importSyncData, getHistory, getExportProfiles, getTableProfiles, getDashboardConfig } from '../services/storageService';
+import { importSyncData, getHistory, getExportProfiles, getTableProfiles, getDashboardConfig, saveDashboardConfig } from '../services/storageService';
 import { syncEmitter } from '../services/syncEmitter';
 import { SyncService } from '../services/syncService';
 import { CloudConflictResolver } from './CloudConflictResolver';
@@ -52,14 +52,29 @@ export default function GoogleDriveSyncManager() {
                 const localScans = getHistory();
                 const localExportProfiles = getExportProfiles();
                 const localTableProfiles = getTableProfiles();
-                const localWidgets = getDashboardConfig().widgets;
+                const localDashboard = getDashboardConfig();
+                const localWidgets = localDashboard.widgets;
 
-                const hasScanConflict = remoteData.scans.some(rs => localScans.some(ls => ls.id === rs.id));
-                const hasExportConflict = remoteData.exportProfiles.some(rp => localExportProfiles.some(lp => lp.id === rp.id));
-                const hasTableConflict = remoteData.tableProfiles.some(rp => localTableProfiles.some(lp => lp.id === rp.id));
+                const hasScanConflict = remoteData.scans.some(rs => {
+                    const ls = localScans.find(l => l.id === rs.id);
+                    return ls && JSON.stringify(ls) !== JSON.stringify(rs);
+                });
+                const hasExportConflict = remoteData.exportProfiles.some(rp => {
+                    const lp = localExportProfiles.find(l => l.id === rp.id);
+                    return lp && JSON.stringify(lp) !== JSON.stringify(rp);
+                });
+                const hasTableConflict = remoteData.tableProfiles.some(rp => {
+                    const lp = localTableProfiles.find(l => l.id === rp.id);
+                    return lp && JSON.stringify(lp) !== JSON.stringify(rp);
+                });
                 const remoteWidgets = remoteData.widgets || remoteData.dashboardConfig?.widgets || [];
-                const hasWidgetConflict = remoteWidgets.some(rw => localWidgets.some(lw => lw.id === rw.id));
-                const hasSettingsConflict = !!remoteData.settings;
+                const hasWidgetConflict = remoteWidgets.some(rw => {
+                    const lw = localWidgets.find(l => l.id === rw.id);
+                    return lw && JSON.stringify(lw) !== JSON.stringify(rw);
+                });
+                
+                // Deep compare settings
+                const hasSettingsConflict = hasSettingsChanged(remoteData.settings, settings);
 
                 console.log('[Sync Debug] Conflict flags:', { hasScanConflict, hasExportConflict, hasTableConflict, hasWidgetConflict, hasSettingsConflict });
 
@@ -82,12 +97,25 @@ export default function GoogleDriveSyncManager() {
                     new Set(remoteWidgets.map(w => w.id)),
                     'skip'
                 );
+                
+                // Apply remote dashboard config if present
+                if (remoteData.dashboardConfig !== undefined) {
+                    saveDashboardConfig({
+                        ...getDashboardConfig(),
+                        isDefaultHome: remoteData.dashboardConfig.isDefaultHome
+                    });
+                }
+
                 const syncNow = Date.now();
                 await uploadToDrive(undefined, false, true, syncNow);
+                
+                // Apply remote settings and update timestamp
+                const mergedSettings = mergeRemoteSettings(remoteData.settings, getSettings());
                 saveSettings({
-                    ...getSettings(),
+                    ...mergedSettings,
                     lastCloudSyncTimestamp: syncNow
                 });
+                
                 lastSyncRef.current = syncNow;
                 SyncService.log('success', 'Data merged and synced successfully.');
                 setIsSyncing(false);
@@ -107,9 +135,18 @@ export default function GoogleDriveSyncManager() {
                     'overwrite'
                 );
                 
-                // Update local timestamp to match remote
+                // Apply remote dashboard config if present
+                if (remoteData.dashboardConfig !== undefined) {
+                    saveDashboardConfig({
+                        ...getDashboardConfig(),
+                        isDefaultHome: remoteData.dashboardConfig.isDefaultHome
+                    });
+                }
+                
+                // Update local timestamp to match remote and apply remote settings
+                const mergedSettings = mergeRemoteSettings(remoteData.settings, getSettings());
                 saveSettings({
-                    ...getSettings(),
+                    ...mergedSettings,
                     lastCloudSyncTimestamp: remoteTimestamp
                 });
                 SyncService.log('success', 'Cloud data imported successfully.');
@@ -158,11 +195,19 @@ export default function GoogleDriveSyncManager() {
                 resolutions
             );
 
+            // Apply remote dashboard config if present
+            if (conflictData.dashboardConfig !== undefined) {
+                saveDashboardConfig({
+                    ...getDashboardConfig(),
+                    isDefaultHome: conflictData.dashboardConfig.isDefaultHome
+                });
+            }
+
             if (settingsResolution === 'overwrite' && conflictData.settings) {
                 // Apply remote settings
+                const mergedSettings = mergeRemoteSettings(conflictData.settings, getSettings());
                 saveSettings({
-                    ...getSettings(),
-                    ...conflictData.settings,
+                    ...mergedSettings,
                     lastCloudSyncTimestamp: getSettings().lastCloudSyncTimestamp // Preserve local sync timestamp for now
                 });
             }

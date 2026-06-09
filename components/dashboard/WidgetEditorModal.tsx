@@ -225,12 +225,17 @@ export default function WidgetEditorModal({ open, onClose, config, onSave, onDel
                             <option value="is_empty">Empty</option>
                             <option value="not_empty">Not Empty</option>
                             <option value="equals">Equals</option>
+                            <option value="not_equals">Not Equals</option>
+                            <option value="greater_than">&gt;</option>
+                            <option value="less_than">&lt;</option>
+                            <option value="greater_than_or_equal">&gt;=</option>
+                            <option value="less_than_or_equal">&lt;=</option>
                             <option value="not_zero">Not Zero</option>
                             <option value="equals_zero">Zero</option>
                             <option value="greater_than_zero">&gt; 0</option>
                             <option value="less_than_zero">&lt; 0</option>
                           </select>
-                          {chainItem.rule.operator === 'equals' && (
+                          {['equals', 'not_equals', 'greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal'].includes(chainItem.rule.operator) && (
                             <input
                               type="text"
                               value={chainItem.rule.value || ""}

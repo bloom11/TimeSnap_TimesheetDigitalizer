@@ -2,11 +2,11 @@
 import React, { useState, forwardRef, useImperativeHandle, useEffect } from 'react';
 import { Save, Bug, Brain, Calendar, RotateCcw, Code2, AlertTriangle, Key, Cpu, Sparkles, MessageSquare, Wind, CheckCircle2, XCircle, Loader2, Moon, Sun, Monitor, TableProperties, ChevronDown, Globe, Network, Zap, Info, RefreshCw, Terminal } from 'lucide-react';
 import { AppSettings, AIProvider } from '../types';
-import { getSettings, saveSettings, resetSettings } from '../services/settingsService';
+import { getSettings, saveSettings, resetSettings, hasSettingsChanged, mergeRemoteSettings } from '../services/settingsService';
 import { verifyApiKey } from '../services/aiService';
 import { GoogleDriveSyncModal } from './GoogleDriveSyncModal';
 import { downloadFromDrive, uploadToDrive } from '../services/googleDriveService';
-import { importSyncData, getHistory, getExportProfiles, getTableProfiles, getDashboardConfig } from '../services/storageService';
+import { importSyncData, getHistory, getExportProfiles, getTableProfiles, getDashboardConfig, saveDashboardConfig } from '../services/storageService';
 import { CloudConflictResolver } from './CloudConflictResolver';
 
 export interface SettingsViewHandle {
@@ -141,10 +141,18 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
               resolutions
           );
 
+          // Apply remote dashboard config if present
+          if (conflictData.dashboardConfig !== undefined) {
+              saveDashboardConfig({
+                  ...getDashboardConfig(),
+                  isDefaultHome: conflictData.dashboardConfig.isDefaultHome
+              });
+          }
+
           if (settingsResolution === 'overwrite' && conflictData.settings) {
+              const mergedSettings = mergeRemoteSettings(conflictData.settings, getSettings());
               saveSettings({
-                  ...getSettings(),
-                  ...conflictData.settings,
+                  ...mergedSettings,
                   lastCloudSyncTimestamp: getSettings().lastCloudSyncTimestamp
               });
           }
@@ -196,12 +204,26 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
               const localTableProfiles = getTableProfiles();
               const localWidgets = getDashboardConfig().widgets;
 
-              const hasScanConflict = remoteData.scans.some(rs => localScans.some(ls => ls.id === rs.id));
-              const hasExportConflict = remoteData.exportProfiles.some(rp => localExportProfiles.some(lp => lp.id === rp.id));
-              const hasTableConflict = remoteData.tableProfiles.some(rp => localTableProfiles.some(lp => lp.id === rp.id));
+              const hasScanConflict = remoteData.scans.some((rs: any) => {
+                  const ls = localScans.find(l => l.id === rs.id);
+                  return ls && JSON.stringify(ls) !== JSON.stringify(rs);
+              });
+              const hasExportConflict = remoteData.exportProfiles.some((rp: any) => {
+                  const lp = localExportProfiles.find(l => l.id === rp.id);
+                  return lp && JSON.stringify(lp) !== JSON.stringify(rp);
+              });
+              const hasTableConflict = remoteData.tableProfiles.some((rp: any) => {
+                  const lp = localTableProfiles.find(l => l.id === rp.id);
+                  return lp && JSON.stringify(lp) !== JSON.stringify(rp);
+              });
               const remoteWidgets = remoteData.widgets || remoteData.dashboardConfig?.widgets || [];
-              const hasWidgetConflict = remoteWidgets.some(rw => localWidgets.some(lw => lw.id === rw.id));
-              const hasSettingsConflict = !!remoteData.settings;
+              const hasWidgetConflict = remoteWidgets.some((rw: any) => {
+                  const lw = localWidgets.find(l => l.id === rw.id);
+                  return lw && JSON.stringify(lw) !== JSON.stringify(rw);
+              });
+              
+              // Deep compare settings
+              const hasSettingsConflict = hasSettingsChanged(remoteData.settings, settings);
 
               console.log('[Sync Debug] Conflict flags:', { hasScanConflict, hasExportConflict, hasTableConflict, hasWidgetConflict, hasSettingsConflict });
 
@@ -221,10 +243,22 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
                   new Set(remoteWidgets.map(w => w.id)),
                   'skip' // Skip is fine since there are no overlaps
               );
+              
+              // Apply remote dashboard config if present
+              if (remoteData.dashboardConfig !== undefined) {
+                  saveDashboardConfig({
+                      ...getDashboardConfig(),
+                      isDefaultHome: remoteData.dashboardConfig.isDefaultHome
+                  });
+              }
+
               const now = Date.now();
               await uploadToDrive(settings.googleClientId, false, false, now);
+              
+              // Apply remote settings and update timestamp
+              const mergedSettings = mergeRemoteSettings(remoteData.settings, getSettings());
               const newSettings = {
-                  ...getSettings(),
+                  ...mergedSettings,
                   lastCloudSyncTimestamp: now
               };
               saveSettings(newSettings);
@@ -244,8 +278,19 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
                   new Set(remoteData.widgets?.map(w => w.id) || []),
                   'overwrite'
               );
+              
+              // Apply remote dashboard config if present
+              if (remoteData.dashboardConfig !== undefined) {
+                  saveDashboardConfig({
+                      ...getDashboardConfig(),
+                      isDefaultHome: remoteData.dashboardConfig.isDefaultHome
+                  });
+              }
+              
+              // Apply remote settings and update timestamp
+              const mergedSettings = mergeRemoteSettings(remoteData.settings, getSettings());
               const newSettings = {
-                  ...getSettings(),
+                  ...mergedSettings,
                   lastCloudSyncTimestamp: remoteTimestamp
               };
               saveSettings(newSettings);
@@ -511,9 +556,21 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
                     <h3 className="font-bold text-slate-800 dark:text-white">General</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Default Year Context</label>
-                        <input type="number" value={settings.defaultYear} onChange={(e) => setSettings({...settings, defaultYear: e.target.value})} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white" placeholder={new Date().getFullYear().toString()} />
+                    <div className="flex flex-col gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Default Year Context</label>
+                            <input type="number" value={settings.defaultYear} onChange={(e) => setSettings({...settings, defaultYear: e.target.value})} className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-white" placeholder={new Date().getFullYear().toString()} />
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <div>
+                                <h4 className="font-semibold text-sm text-slate-800 dark:text-white">Auto-Sort Times Chronologically</h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">If times are scanned out of order, sort them horizontally (Entrance &lt; Break &lt; Exit) keeping them in their correct functional fields.</p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer ml-4 shrink-0">
+                                <input type="checkbox" checked={settings.autoSortScannedTimes} onChange={(e) => setSettings({...settings, autoSortScannedTimes: e.target.checked})} className="sr-only peer" />
+                                <div className="w-9 h-5 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -711,6 +768,11 @@ const SettingsView = forwardRef<SettingsViewHandle, SettingsViewProps>(({ onClos
         <GoogleDriveSyncModal 
             isOpen={showSyncModal} 
             onClose={() => setShowSyncModal(false)} 
+            settings={settings}
+            onSettingsChange={(updated) => {
+                setSettings(updated);
+                setInitialSettings(updated);
+            }}
         />
 
         <CloudConflictResolver 

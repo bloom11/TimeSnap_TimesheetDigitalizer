@@ -111,6 +111,7 @@ export interface AppSettings {
   lastCloudSyncTimestamp: number;
   lastLocalChangeTimestamp: number;
   autoFillMonthBoundaries: boolean;
+  autoSortScannedTimes: boolean;
 }
 
 export interface ScanResult {
@@ -147,7 +148,7 @@ export interface SyncSettingsPayload {
     appearance?: { theme: 'light' | 'dark' | 'system' };
     aiConfig?: { activeProvider: AIProvider; activeModel: string; debugMode: boolean };
     prompts?: { aiSystemPrompt: string; aiMappingPrompt: string; aiOutputSchema: string };
-    general?: { defaultYear: string; autoFillMonthBoundaries: boolean };
+    general?: { defaultYear: string; autoFillMonthBoundaries: boolean; autoSortScannedTimes?: boolean };
     lastCloudSyncTimestamp?: number;
 }
 

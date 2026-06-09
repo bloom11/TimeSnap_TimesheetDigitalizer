@@ -8,6 +8,7 @@ import { applyTheme, getSettings } from "./services/settingsService";
 import { SyncService } from "./services/syncService";
 import { extractTimeDataFromImage } from "./services/aiService";
 import { applyFormulas } from "./services/formulaEngine";
+import { autoSortTimeColumns } from "./utils/timeSorting";
 
 import HomeView from "./components/HomeView";
 import Scanner from "./components/Scanner";
@@ -366,7 +367,8 @@ export default function App() {
       setRemoteImages(prev => prev.filter((_, idx) => !selectedIndices.includes(idx)));
       setSelectedIndices([]);
       setCurrentProcessIndex(-1);
-      handleScanSuccess(results);
+      const settings = getSettings();
+      handleScanSuccess(settings.autoSortScannedTimes ? autoSortTimeColumns(results) : results);
   };
 
   const handleOfflineAnalysis = () => {

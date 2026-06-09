@@ -10,27 +10,39 @@ import GoogleDriveBackupExplorer from './GoogleDriveBackupExplorer';
 interface GoogleDriveSyncModalProps {
     isOpen: boolean;
     onClose: () => void;
+    settings: AppSettings;
+    onSettingsChange: (settings: AppSettings) => void;
 }
 
-export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({ isOpen, onClose }) => {
-    const [settings, setSettings] = useState<AppSettings>(getSettings());
+export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({ isOpen, onClose, settings, onSettingsChange }) => {
     const [isTesting, setIsTesting] = useState(false);
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
     const [showGuide, setShowGuide] = useState(false);
     const [view, setView] = useState<'config' | 'explorer'>('config');
+    const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
+
+    useEffect(() => {
+        if (isOpen) {
+            setLocalSettings(settings);
+            setTestResult(null);
+            setIsTesting(false);
+        }
+    }, [isOpen, settings]);
 
     const handleSave = () => {
         const currentSettings = getSettings();
-        saveSettings({
+        const updated = {
             ...currentSettings,
-            googleClientId: settings.googleClientId,
-            googleDriveSyncEnabled: settings.googleDriveSyncEnabled
-        });
+            googleClientId: localSettings.googleClientId,
+            googleDriveSyncEnabled: localSettings.googleDriveSyncEnabled
+        };
+        saveSettings(updated);
+        onSettingsChange(updated);
         onClose();
     };
 
     const handleTestConnection = async () => {
-        if (!settings.googleClientId) {
+        if (!localSettings.googleClientId) {
             setTestResult({ success: false, message: "Please enter a Client ID first." });
             return;
         }
@@ -40,7 +52,7 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({ isOp
             setTestResult(null);
             
             // Try to download (this will trigger auth)
-            await downloadFromDrive(settings.googleClientId, true);
+            await downloadFromDrive(localSettings.googleClientId, true);
             
             setTestResult({ success: true, message: "Successfully connected to Google Drive!" });
         } catch (error: any) {
@@ -161,8 +173,8 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({ isOp
                                         </label>
                                         <input
                                             type="text"
-                                            value={settings.googleClientId}
-                                            onChange={(e) => setSettings({ ...settings, googleClientId: e.target.value })}
+                                            value={localSettings.googleClientId}
+                                            onChange={(e) => setLocalSettings({ ...localSettings, googleClientId: e.target.value })}
                                             placeholder="your-client-id.apps.googleusercontent.com"
                                             className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
                                         />
@@ -174,20 +186,20 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({ isOp
                                             <p className="text-xs text-zinc-500 dark:text-zinc-400">Automatically backup data on every change</p>
                                         </div>
                                         <button
-                                            onClick={() => setSettings({ ...settings, googleDriveSyncEnabled: !settings.googleDriveSyncEnabled })}
+                                            onClick={() => setLocalSettings({ ...localSettings, googleDriveSyncEnabled: !localSettings.googleDriveSyncEnabled })}
                                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                                                settings.googleDriveSyncEnabled ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-600'
+                                                localSettings.googleDriveSyncEnabled ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-600'
                                             }`}
                                         >
                                             <span
                                                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                                    settings.googleDriveSyncEnabled ? 'translate-x-6' : 'translate-x-1'
+                                                    localSettings.googleDriveSyncEnabled ? 'translate-x-6' : 'translate-x-1'
                                                 }`}
                                             />
                                         </button>
                                     </div>
 
-                                    {settings.googleClientId && (
+                                    {localSettings.googleClientId && (
                                         <button 
                                             onClick={() => setView('explorer')}
                                             className="w-full p-4 flex items-center justify-between bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-2xl border border-zinc-100 dark:border-zinc-700 transition-colors group"
@@ -224,7 +236,7 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({ isOp
                             </>
                         ) : (
                             <GoogleDriveBackupExplorer 
-                                clientId={settings.googleClientId} 
+                                clientId={localSettings.googleClientId} 
                                 onClose={() => setView('config')} 
                             />
                         )}
@@ -235,7 +247,7 @@ export const GoogleDriveSyncModal: React.FC<GoogleDriveSyncModalProps> = ({ isOp
                         <div className="p-6 border-t border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row gap-3 bg-zinc-50/50 dark:bg-zinc-800/50">
                             <button
                                 onClick={handleTestConnection}
-                                disabled={isTesting || !settings.googleClientId}
+                                disabled={isTesting || !localSettings.googleClientId}
                                 className="flex-1 px-6 py-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 font-bold rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                 {isTesting ? (
